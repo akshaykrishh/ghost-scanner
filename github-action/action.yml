@@ -14,6 +14,9 @@ inputs:
     description: 'Types of scans to run (secrets,dependencies)'
     required: false
     default: 'secrets,dependencies'
+  repository_id:
+    description: 'Ghost Scanner repository ID (required by API)'
+    required: false
   fail_on_critical:
     description: 'Fail the workflow if critical findings are detected'
     required: false
@@ -39,6 +42,7 @@ runs:
         GHOST_SCANNER_API_URL: ${{ inputs.api_url }}
         INPUT_API_KEY: ${{ inputs.api_key }}
         INPUT_SCAN_TYPES: ${{ inputs.scan_types }}
+        INPUT_REPOSITORY_ID: ${{ inputs.repository_id }}
         INPUT_FAIL_ON_HIGH_RISK: ${{ inputs.fail_on_critical }}
         INPUT_COMMENT_ON_PR: ${{ inputs.comment_on_pr }}
         INPUT_INCLUDE_AI_ANALYSIS: ${{ inputs.include_ai_analysis }}

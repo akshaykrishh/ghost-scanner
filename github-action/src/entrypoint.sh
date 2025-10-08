@@ -8,6 +8,7 @@ set -e
 # Configuration
 API_BASE_URL="${GHOST_SCANNER_API_URL:-https://api.ghostscanner.com}"
 API_KEY="${INPUT_API_KEY}"
+REPOSITORY_ID="${INPUT_REPOSITORY_ID}"
 SCAN_TYPES="${INPUT_SCAN_TYPES:-secrets,dependencies}"
 FAIL_ON_HIGH_RISK="${INPUT_FAIL_ON_HIGH_RISK:-false}"
 COMMENT_ON_PR="${INPUT_COMMENT_ON_PR:-true}"
@@ -327,6 +328,12 @@ JSON_PAYLOAD="{
     \"scan_type\": \"secrets\",
     \"commit_sha\": \"$COMMIT_SHA\",
     \"branch\": \"$BRANCH\""
+
+# Add repository_id if provided
+if [ -n "$REPOSITORY_ID" ]; then
+    JSON_PAYLOAD="$JSON_PAYLOAD,
+    \"repository_id\": $REPOSITORY_ID"
+fi
 
 # Add pull_request_number only if it's not empty
 if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
