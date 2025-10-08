@@ -1,0 +1,43 @@
+version: "1"
+
+@databases:
+- name: ghost-scanner-postgres
+  databaseName: ghost_scanner
+  user: ghost_scanner
+  plan: free
+
+services:
+  - type: redis
+    name: ghost-scanner-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: ghost-scanner-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    dockerfilePath: docker/backend/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ghost-scanner-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: ghost-scanner-redis
+          type: redis
+          property: connectionString
+      - key: DEBUG
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
