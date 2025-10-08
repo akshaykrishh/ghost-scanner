@@ -33,10 +33,44 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Ensure gitleaks is available; attempt install if missing
+ensure_gitleaks() {
+    if command -v gitleaks &> /dev/null; then
+        return 0
+    fi
+
+    log_warn "Gitleaks not found. Attempting installation..."
+
+    # Try official install script (supports Linux/macOS); requires sudo for /usr/local/bin
+    if command -v curl &> /dev/null; then
+        if sudo sh -c "curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b /usr/local/bin"; then
+            if command -v gitleaks &> /dev/null; then
+                log_info "Gitleaks installed successfully"
+                return 0
+            fi
+        fi
+    fi
+
+    # Fallback: try installing to ~/bin if sudo is unavailable
+    if command -v curl &> /dev/null; then
+        mkdir -p "$HOME/bin"
+        if sh -c "curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b $HOME/bin"; then
+            export PATH="$HOME/bin:$PATH"
+            if command -v gitleaks &> /dev/null; then
+                log_info "Gitleaks installed to $HOME/bin"
+                return 0
+            fi
+        fi
+    fi
+
+    log_warn "Unable to install Gitleaks automatically"
+    return 1
+}
+
 # Function to run secrets scan
 run_secrets_scan() {
-    # Check if gitleaks is available
-    if command -v gitleaks &> /dev/null; then
+    # Ensure gitleaks is available (attempt install if missing)
+    if ensure_gitleaks; then
         log_info "Using Gitleaks for secrets scanning"
         gitleaks detect --source . --format json --no-git || echo "[]"
     else
@@ -277,9 +311,7 @@ FINDINGS="[]"
 
 if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
-    if ! command -v gitleaks &> /dev/null; then
-        log_warn "Gitleaks not available, using pattern-based scanning"
-    fi
+    ensure_gitleaks || log_warn "Gitleaks not available, using pattern-based scanning"
     SECRETS_FINDINGS=$(run_secrets_scan)
     log_info "Secrets scan output: $SECRETS_FINDINGS"
     FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
