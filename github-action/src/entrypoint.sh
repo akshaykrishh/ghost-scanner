@@ -320,6 +320,13 @@ log_info "Branch: $BRANCH"
 log_info "PR Number: $PR_NUMBER"
 log_info "Scan types: $SCAN_TYPES"
 
+# Debug Git context to confirm what's being scanned
+log_info "Git context summary:"
+echo "  HEAD ref: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+echo "  Last commit: $(git log -1 --oneline 2>/dev/null || echo unknown)"
+echo "  GITHUB_REF: $GITHUB_REF"
+echo "  GITHUB_HEAD_REF: $GITHUB_HEAD_REF"
+
 # Create scan session
 log_info "Creating scan session..."
 
