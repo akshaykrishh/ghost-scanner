@@ -144,10 +144,10 @@ import sys
 try:
     findings = []
     patterns = {
-        'api_key': r'(?i)(api[_-]?key|apikey)\\s*[:=]\\s*[\\"\\']?([a-zA-Z0-9]{20,})[\\"\\']?',
-        'aws_access_key_id': r'(?i)(aws[_-]?access[_-]?key[_-]?id)\\s*[:=]\\s*[\\"\\']?(AKIA[0-9A-Z]{16})[\\"\\']?',
-        'aws_secret_access_key': r'(?i)(aws[_-]?secret[_-]?access[_-]?key)\\s*[:=]\\s*[\\"\\']?([A-Za-z0-9/+=]{40})[\\"\\']?',
-        'password': r'(?i)(password|passwd|pwd)\\s*[:=]\\s*[\\"\\']?([^\\"\\']{8,})[\\"\\']?',
+        'api_key': r'(?i)\(api\[_-]\?key\|apikey\)\\s*[:=]\\s*[\\"\\']?([a-zA-Z0-9]{20,})[\\"\\']?',
+        'aws_access_key_id': r'(?i)\(aws\[_-]\?access\[_-]\?key\[_-]\?id\)\\s*[:=]\\s*[\\"\\']?(AKIA[0-9A-Z]{16})[\\"\\']?',
+        'aws_secret_access_key': r'(?i)\(aws\[_-]\?secret\[_-]\?access\[_-]\?key\)\\s*[:=]\\s*[\\"\\']?([A-Za-z0-9/+=]{40})[\\"\\']?',
+        'password': r'(?i)\(password\|passwd\|pwd\)\\s*[:=]\\s*[\\"\\']?([^\\"\\']{8,})[\\"\\']?',
         'stripe_key': r'(?i)sk_\(live\|test\)_[A-Za-z0-9]{20,}',
         'github_token': r'ghp_[A-Za-z0-9]{36,}',
         'slack_webhook': r'https://hooks\\.slack\\.com/services/[A-Za-z0-9/]+',
