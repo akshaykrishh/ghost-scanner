@@ -322,9 +322,8 @@ log_info "Scan types: $SCAN_TYPES"
 # Create scan session
 log_info "Creating scan session..."
 
-# Build JSON payload dynamically
+# Build JSON payload dynamically (avoid hardcoded repository_id)
 JSON_PAYLOAD="{
-    \"repository_id\": 1,
     \"scan_type\": \"secrets\",
     \"commit_sha\": \"$COMMIT_SHA\",
     \"branch\": \"$BRANCH\""
@@ -338,6 +337,7 @@ fi
 JSON_PAYLOAD="$JSON_PAYLOAD
 }"
 
+log_info "API Base URL: $API_BASE_URL"
 log_info "Sending JSON payload: $JSON_PAYLOAD"
 
 # Prepare common auth header if API key provided
