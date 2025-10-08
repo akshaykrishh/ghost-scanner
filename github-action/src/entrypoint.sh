@@ -100,29 +100,26 @@ FINDINGS_COUNT=$(echo "$FINDINGS" | jq 'length')
 if [ "$FINDINGS_COUNT" -gt 0 ]; then
     log_warn "Found $FINDINGS_COUNT security findings"
     
-    # Send findings
-    curl -s -X POST "$API_BASE_URL/api/v1/scans/$SCAN_ID/findings" \
-        -H "Authorization: Bearer $API_KEY" \
+    # Complete the scan with findings
+    curl -s -X POST "$API_BASE_URL/api/v1/scans/$SCAN_ID/complete" \
         -H "Content-Type: application/json" \
         -d "{
-            \"findings\": $FINDINGS,
-            \"include_ai_analysis\": $INCLUDE_AI_ANALYSIS
+            \"findings\": $FINDINGS
         }"
     
-    # Get AI analysis results
-    log_info "Getting AI analysis..."
-    ANALYSIS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/analysis" \
-        -H "Authorization: Bearer $API_KEY")
+    # Get scan results
+    log_info "Getting scan results..."
+    RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results")
     
     # Post PR comment if enabled
     if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ]; then
         log_info "Posting PR comment..."
-        post_pr_comment "$ANALYSIS_RESPONSE"
+        post_pr_comment "$RESULTS_RESPONSE"
     fi
     
     # Check if we should fail on high risk findings
     if [ "$FAIL_ON_HIGH_RISK" = "true" ]; then
-        HIGH_RISK_COUNT=$(echo "$ANALYSIS_RESPONSE" | jq -r '.high_risk_count // 0')
+        HIGH_RISK_COUNT=$(echo "$RESULTS_RESPONSE" | jq -r '.high_risk_count // 0')
         if [ "$HIGH_RISK_COUNT" -gt 0 ]; then
             log_error "Found $HIGH_RISK_COUNT high-risk findings. Failing build."
             exit 1
@@ -257,22 +254,26 @@ except:
 
 # Function to post PR comment
 post_pr_comment() {
-    local analysis_response="$1"
+    local results_response="$1"
     
     # Create comment body
     local comment_body="## 🔍 Ghost Scanner Security Analysis
 
 ### Summary
-- **Total Findings**: $(echo "$analysis_response" | jq -r '.total_findings // 0')
-- **High Risk**: $(echo "$analysis_response" | jq -r '.high_risk_count // 0')
-- **Medium Risk**: $(echo "$analysis_response" | jq -r '.medium_risk_count // 0')
-- **Low Risk**: $(echo "$analysis_response" | jq -r '.low_risk_count // 0')
+- **Total Findings**: $(echo "$results_response" | jq -r '.total_findings // 0')
+- **Critical**: $(echo "$results_response" | jq -r '.critical_count // 0')
+- **High**: $(echo "$results_response" | jq -r '.high_count // 0')
+- **Medium**: $(echo "$results_response" | jq -r '.medium_count // 0')
+- **Low**: $(echo "$results_response" | jq -r '.low_count // 0')
 
-### AI-Prioritized Findings
-$(echo "$analysis_response" | jq -r '.high_risk_findings[]? | "- **\(.rule_name)**: \(.ai_explanation)"' 2>/dev/null || echo "No high-risk findings detected.")
+### AI Risk Assessment
+- **High Risk**: $(echo "$results_response" | jq -r '.high_risk_count // 0')
+- **Medium Risk**: $(echo "$results_response" | jq -r '.medium_risk_count // 0')
+- **Low Risk**: $(echo "$results_response" | jq -r '.low_risk_count // 0')
 
-### Recommendations
-$(echo "$analysis_response" | jq -r '.high_risk_findings[]? | "- **\(.rule_name)**: \(.ai_remediation)"' 2>/dev/null || echo "No specific recommendations at this time.")
+### Scan Details
+- **Files Scanned**: $(echo "$results_response" | jq -r '.files_scanned // 0')
+- **Scan Duration**: $(echo "$results_response" | jq -r '.scan_duration_seconds // 0') seconds
 
 ---
 *Powered by Ghost Scanner AI*"
