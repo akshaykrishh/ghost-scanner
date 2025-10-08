@@ -24,6 +24,8 @@ jobs:
         api_key: ${{ secrets.GHOST_SCANNER_API_KEY }}
         scan_types: "secrets,dependencies"
         fail_on_critical: false  # Don't fail PR for testing
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Display scan results
       run: |

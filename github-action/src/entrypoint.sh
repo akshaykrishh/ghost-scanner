@@ -40,8 +40,8 @@ if [ -z "$API_KEY" ]; then
 fi
 
 if [ -z "$GITHUB_TOKEN" ]; then
-    log_error "GitHub token is required for PR comments."
-    exit 1
+    log_warn "GitHub token not provided. PR comments will be disabled."
+    COMMENT_ON_PR="false"
 fi
 
 # Get repository information

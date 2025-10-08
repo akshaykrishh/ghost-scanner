@@ -42,3 +42,4 @@ runs:
         INPUT_FAIL_ON_HIGH_RISK: ${{ inputs.fail_on_critical }}
         INPUT_COMMENT_ON_PR: ${{ inputs.comment_on_pr }}
         INPUT_INCLUDE_AI_ANALYSIS: ${{ inputs.include_ai_analysis }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
