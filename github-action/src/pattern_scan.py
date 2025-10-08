@@ -6,6 +6,7 @@ import sys
 
 def run_pattern_scan(root_dir: str) -> None:
     findings = []
+    files_scanned = 0
 
     patterns = {
         # Generic API key-ish
@@ -33,6 +34,9 @@ def run_pattern_scan(root_dir: str) -> None:
         '.txt', '.md', '.cfg', '.ini', '.pem', '.key'
     )
 
+    # Log scan root (stderr)
+    print(f"[INFO] Pattern scan root: {os.path.abspath(root_dir)}", file=sys.stderr)
+
     for base, _dirs, files in os.walk(root_dir):
         for name in files:
             file_path = os.path.join(base, name)
@@ -48,6 +52,7 @@ def run_pattern_scan(root_dir: str) -> None:
             try:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     content = f.read()
+                files_scanned += 1
                 for pattern_name, pattern in patterns.items():
                     for match in re.finditer(pattern, content):
                         findings.append({
@@ -61,6 +66,9 @@ def run_pattern_scan(root_dir: str) -> None:
             except Exception:
                 # Skip unreadable files
                 continue
+
+    # Log files scanned count (stderr)
+    print(f"[INFO] Pattern files scanned: {files_scanned}", file=sys.stderr)
 
     print(json.dumps(findings))
 

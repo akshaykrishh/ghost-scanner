@@ -117,14 +117,14 @@ run_secrets_scan() {
     local gitleaks_output gitleaks_wt gitleaks_range base_ref
     if command -v gitleaks >/dev/null 2>&1; then
         # Working tree scan (no git history)
-        gitleaks_wt=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
+        gitleaks_wt=$(gitleaks detect --source "$SCAN_SOURCE_PATH" --format json --no-git 2>/dev/null || echo "[]")
         if ! echo "$gitleaks_wt" | jq . >/dev/null 2>&1; then gitleaks_wt="[]"; fi
 
         # Commit-range scan for PRs (base..HEAD)
         base_ref=${GITHUB_BASE_REF:-}
         if [ -n "$base_ref" ]; then
-            git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
-            gitleaks_range=$(gitleaks detect --source . --format json --log-opts "origin/$base_ref..HEAD" 2>/dev/null || echo "[]")
+            git -C "$SCAN_SOURCE_PATH" fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
+            gitleaks_range=$(gitleaks detect --source "$SCAN_SOURCE_PATH" --format json --log-opts "origin/$base_ref..HEAD" 2>/dev/null || echo "[]")
             if ! echo "$gitleaks_range" | jq . >/dev/null 2>&1; then gitleaks_range="[]"; fi
         else
             gitleaks_range="[]"
@@ -149,7 +149,7 @@ run_secrets_scan() {
 
     # Pattern-based secrets detection via external script to avoid shell escaping issues
     local pattern_output
-    pattern_output=$(python3 "${GITHUB_ACTION_PATH:-$(dirname "$0")}/pattern_scan.py" . 2>/dev/null || echo "[]")
+    pattern_output=$(python3 "${GITHUB_ACTION_PATH:-$(dirname "$0")}/pattern_scan.py" "$SCAN_SOURCE_PATH" 2>/dev/null || echo "[]")
 
     # Debug: log pattern-based run and finding count to stderr (do not contaminate JSON)
     {
@@ -301,6 +301,8 @@ fi
 REPO_NAME="${GITHUB_REPOSITORY}"
 COMMIT_SHA="${GITHUB_SHA}"
 BRANCH="${GITHUB_REF#refs/heads/}"
+# Ensure scans run against the checked out repository, not the action folder
+SCAN_SOURCE_PATH="${GITHUB_WORKSPACE:-$(pwd)}"
 
 # Get PR number from different sources
 if [ -n "$GITHUB_EVENT_NUMBER" ]; then
@@ -322,8 +324,9 @@ log_info "Scan types: $SCAN_TYPES"
 
 # Debug Git context to confirm what's being scanned
 log_info "Git context summary:"
-echo "  HEAD ref: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
-echo "  Last commit: $(git log -1 --oneline 2>/dev/null || echo unknown)"
+echo "  Scan root: $SCAN_SOURCE_PATH"
+echo "  HEAD ref: $(git -C \"$SCAN_SOURCE_PATH\" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+echo "  Last commit: $(git -C \"$SCAN_SOURCE_PATH\" log -1 --oneline 2>/dev/null || echo unknown)"
 echo "  GITHUB_REF: $GITHUB_REF"
 echo "  GITHUB_HEAD_REF: $GITHUB_HEAD_REF"
 
