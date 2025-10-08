@@ -245,33 +245,68 @@ except Exception as e:
 post_pr_comment() {
     local ai_findings_response="$1"
     local results_response="$2"
-    
-    # Create comment body with AI-enhanced findings
-    local comment_body="## 🔍 Ghost Scanner Security Analysis
+
+    # Choose findings JSON: prefer AI array if valid, else results.findings, else []
+    local findings_json
+    if echo "$ai_findings_response" | jq -e 'type=="array"' >/dev/null 2>&1; then
+        findings_json="$ai_findings_response"
+    else
+        findings_json=$(echo "$results_response" | jq -c '.findings // []' 2>/dev/null || echo "[]")
+    fi
+
+    # Precompute counts with fallbacks
+    local total critical high medium low
+    total=$(echo "$findings_json"   | jq 'length'                                       2>/dev/null || echo 0)
+    critical=$(echo "$findings_json"| jq '[.[] | select(.severity=="critical")] | length' 2>/dev/null || echo 0)
+    high=$(echo "$findings_json"    | jq '[.[] | select(.severity=="high")] | length'     2>/dev/null || echo 0)
+    medium=$(echo "$findings_json"  | jq '[.[] | select(.severity=="medium")] | length'   2>/dev/null || echo 0)
+    low=$(echo "$findings_json"     | jq '[.[] | select(.severity=="low")] | length'      2>/dev/null || echo 0)
+
+    # Optional AI risk counts (ignore if absent)
+    local ai_high ai_medium ai_low
+    ai_high=$(echo "$findings_json"  | jq '[.[] | select(.ai_risk_score=="high")] | length'   2>/dev/null || echo 0)
+    ai_medium=$(echo "$findings_json"| jq '[.[] | select(.ai_risk_score=="medium")] | length' 2>/dev/null || echo 0)
+    ai_low=$(echo "$findings_json"   | jq '[.[] | select(.ai_risk_score=="low")] | length'     2>/dev/null || echo 0)
+
+    # Build list markdown from findings
+    local findings_list remediation_list
+    findings_list=$(echo "$findings_json" | jq -r '.[] | "- **\(.rule_name // "Unknown Rule")** (\(.severity // "unknown" | ascii_upcase))\n  - File: `\(.file_path // "unknown")` (line \(.line_number // 0))\n  - Description: \(.description // "")"' 2>/dev/null || echo "No detailed findings available")
+    remediation_list=$(echo "$findings_json" | jq -r '.[] | select(.ai_remediation) | "- **\(.rule_name // "Unknown")**: \(.ai_remediation)"' 2>/dev/null)
+    if [ -z "$remediation_list" ]; then
+        remediation_list="- Review and secure any exposed credentials
+- Use environment variables or secure vaults for sensitive data
+- Remove hardcoded passwords and API keys"
+    fi
+
+    # Files scanned count (from repo workspace)
+    local files_scanned
+    files_scanned=$(find "$SCAN_SOURCE_PATH" -type f | wc -l | tr -d ' ')
+
+    # Create comment body (no inline jq calls)
+    local comment_body
+    comment_body="## 🔍 Ghost Scanner Security Analysis
 
 ### Summary
-- **Total Findings**: $(echo "$ai_findings_response" | jq 'length')
-- **Critical**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "critical")] | length')
-- **High**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "high")] | length')
-- **Medium**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "medium")] | length')
-- **Low**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "low")] | length')
+- **Total Findings**: $total
+- **Critical**: $critical
+- **High**: $high
+- **Medium**: $medium
+- **Low**: $low
 
 ### 🤖 AI Risk Assessment
-- **High Risk**: $(echo "$ai_findings_response" | jq '[.[] | select(.ai_risk_score == "high")] | length')
-- **Medium Risk**: $(echo "$ai_findings_response" | jq '[.[] | select(.ai_risk_score == "medium")] | length')
-- **Low Risk**: $(echo "$ai_findings_response" | jq '[.[] | select(.ai_risk_score == "low")] | length')
+- **High Risk**: $ai_high
+- **Medium Risk**: $ai_medium
+- **Low Risk**: $ai_low
 
 ### 🔍 Security Findings
-
-$(echo "$ai_findings_response" | jq -r '.[] | "- **\(.rule_name)** (\(.severity | ascii_upcase) | AI Risk: \(.ai_risk_score // "unknown" | ascii_upcase))\n  - File: `\(.file_path)` (line \(.line_number))\n  - AI Explanation: \(.ai_explanation // "No AI analysis available")\n  - AI Confidence: \(.ai_confidence // "N/A")"' 2>/dev/null || echo "No detailed findings available")
+$findings_list
 
 ### 🛠️ AI-Powered Remediation Recommendations
-
-$(echo "$ai_findings_response" | jq -r '.[] | "- **\(.rule_name)**: \(.ai_remediation // "No AI remediation available")"' 2>/dev/null || echo "- Review and secure any exposed credentials\n- Use environment variables or secure vaults for sensitive data\n- Remove hardcoded passwords and API keys")
+$remediation_list
 
 ### 📊 Scan Details
-- **Files Scanned**: $(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.env" -o -name "*.yml" -o -name "*.yaml" | wc -l)
-- **Scan Duration**: $(date +%s) seconds
+- **Scan Root**: $SCAN_SOURCE_PATH
+- **Files Scanned**: $files_scanned
 
 ---
 *Powered by Ghost Scanner AI*"
