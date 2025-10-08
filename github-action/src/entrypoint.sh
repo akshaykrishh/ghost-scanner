@@ -144,14 +144,20 @@ import sys
 try:
     findings = []
     patterns = {
-        'api_key': r'(?i)(api[_-]?key|apikey)\s*[:=]\s*[\"\\']?([a-zA-Z0-9]{20,})[\"\\']?',
-        'aws_key': r'(?i)(aws[_-]?access[_-]?key[_-]?id)\s*[:=]\s*[\"\\']?(AKIA[0-9A-Z]{16})[\"\\']?',
-        'password': r'(?i)(password|passwd|pwd)\s*[:=]\s*[\"\\']?([^\"\\']{8,})[\"\\']?'
+        'api_key': r'(?i)(api[_-]?key|apikey)\\s*[:=]\\s*[\\"\\']?([a-zA-Z0-9]{20,})[\\"\\']?',
+        'aws_access_key_id': r'(?i)(aws[_-]?access[_-]?key[_-]?id)\\s*[:=]\\s*[\\"\\']?(AKIA[0-9A-Z]{16})[\\"\\']?',
+        'aws_secret_access_key': r'(?i)(aws[_-]?secret[_-]?access[_-]?key)\\s*[:=]\\s*[\\"\\']?([A-Za-z0-9/+=]{40})[\\"\\']?',
+        'password': r'(?i)(password|passwd|pwd)\\s*[:=]\\s*[\\"\\']?([^\\"\\']{8,})[\\"\\']?',
+        'stripe_key': r'(?i)sk_(?:live|test)_[A-Za-z0-9]{20,}',
+        'github_token': r'ghp_[A-Za-z0-9]{36,}',
+        'slack_webhook': r'https://hooks\\.slack\\.com/services/[A-Za-z0-9/]+',
+        'discord_webhook': r'https://discord\\.com/api/webhooks/[A-Za-z0-9_/.-]+',
+        'rsa_private_key': r'-----BEGIN (?:RSA )?PRIVATE KEY-----[\\s\\S]*?-----END (?:RSA )?PRIVATE KEY-----'
     }
 
     for root, dirs, files in os.walk('.'):
         for file in files:
-            if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml', '.txt', '.md', '.cfg', '.ini')):
+            if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml', '.txt', '.md', '.cfg', '.ini', '.pem', '.key')):
                 file_path = os.path.join(root, file)
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -160,10 +166,10 @@ try:
                             for match in re.finditer(pattern, content):
                                 findings.append({
                                     'rule_id': f'pattern_{pattern_name}',
-                                    'rule_name': f'Potential {pattern_name.replace("_", " ").title()}',
+                                    'rule_name': f'Potential {pattern_name.replace(\"_\", \" \" ).title()}',
                                     'severity': 'medium',
                                     'file_path': file_path,
-                                    'line_number': content[:match.start()].count('\n') + 1,
+                                    'line_number': content[:match.start()].count('\\n') + 1,
                                     'description': f'Potential {pattern_name} detected'
                                 })
                 except:
