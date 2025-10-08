@@ -58,15 +58,28 @@ log_info "Scan types: $SCAN_TYPES"
 
 # Create scan session
 log_info "Creating scan session..."
+
+# Build JSON payload dynamically
+JSON_PAYLOAD="{
+    \"repository_id\": 1,
+    \"scan_type\": \"secrets\",
+    \"commit_sha\": \"$COMMIT_SHA\",
+    \"branch\": \"$BRANCH\""
+
+# Add pull_request_number only if it's not empty
+if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+    JSON_PAYLOAD="$JSON_PAYLOAD,
+    \"pull_request_number\": $PR_NUMBER"
+fi
+
+JSON_PAYLOAD="$JSON_PAYLOAD
+}"
+
+log_info "Sending JSON payload: $JSON_PAYLOAD"
+
 SCAN_RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/v1/scans/" \
     -H "Content-Type: application/json" \
-    -d "{
-        \"repository_id\": 1,
-        \"scan_type\": \"secrets\",
-        \"commit_sha\": \"$COMMIT_SHA\",
-        \"branch\": \"$BRANCH\",
-        \"pull_request_number\": $PR_NUMBER
-    }")
+    -d "$JSON_PAYLOAD")
 
 SCAN_ID=$(echo "$SCAN_RESPONSE" | jq -r '.id')
 
