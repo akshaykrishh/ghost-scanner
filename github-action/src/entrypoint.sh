@@ -41,23 +41,48 @@ ensure_gitleaks() {
 
     log_warn "Gitleaks not found. Attempting installation..."
 
-    # Try official install script (supports Linux/macOS); requires sudo for /usr/local/bin
+    # Try direct binary download (more reliable than install script)
     if command -v curl &> /dev/null; then
-        if sudo sh -c "curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b /usr/local/bin"; then
+        # Detect architecture
+        ARCH=$(uname -m)
+        case $ARCH in
+            x86_64) ARCH="x64" ;;
+            arm64|aarch64) ARCH="arm64" ;;
+            *) log_warn "Unsupported architecture: $ARCH"; return 1 ;;
+        esac
+        
+        # Detect OS
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        case $OS in
+            linux) OS="linux" ;;
+            darwin) OS="darwin" ;;
+            *) log_warn "Unsupported OS: $OS"; return 1 ;;
+        esac
+        
+        # Get latest version
+        VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | jq -r '.tag_name' 2>/dev/null || echo "v8.18.0")
+        VERSION=${VERSION#v}  # Remove 'v' prefix
+        
+        # Download and install
+        DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_${OS}_${ARCH}.tar.gz"
+        
+        if curl -sSfL "$DOWNLOAD_URL" | tar -xz -C /tmp && \
+           sudo mv /tmp/gitleaks /usr/local/bin/ && \
+           sudo chmod +x /usr/local/bin/gitleaks; then
             if command -v gitleaks &> /dev/null; then
-                log_info "Gitleaks installed successfully"
+                log_info "Gitleaks installed successfully (v${VERSION})"
                 return 0
             fi
         fi
-    fi
-
-    # Fallback: try installing to ~/bin if sudo is unavailable
-    if command -v curl &> /dev/null; then
-        mkdir -p "$HOME/bin"
-        if sh -c "curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b $HOME/bin"; then
+        
+        # Fallback: try installing to ~/bin if sudo is unavailable
+        if curl -sSfL "$DOWNLOAD_URL" | tar -xz -C /tmp && \
+           mkdir -p "$HOME/bin" && \
+           mv /tmp/gitleaks "$HOME/bin/" && \
+           chmod +x "$HOME/bin/gitleaks"; then
             export PATH="$HOME/bin:$PATH"
             if command -v gitleaks &> /dev/null; then
-                log_info "Gitleaks installed to $HOME/bin"
+                log_info "Gitleaks installed to $HOME/bin (v${VERSION})"
                 return 0
             fi
         fi
@@ -72,8 +97,9 @@ run_secrets_scan() {
     # Ensure gitleaks is available (attempt install if missing)
     if ensure_gitleaks; then
         log_info "Using Gitleaks for secrets scanning"
-        gitleaks detect --source . --format json --no-git || echo "[]"
+        gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]"
     else
+        log_warn "Gitleaks not available, using pattern-based scanning"
         # Simple pattern-based secrets detection
         python3 -c "
 import json
@@ -112,7 +138,7 @@ try:
     print(json.dumps(findings))
 except Exception as e:
     print('[]')
-"
+" 2>/dev/null
     fi
 }
 
@@ -311,9 +337,8 @@ FINDINGS="[]"
 
 if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
-    ensure_gitleaks || log_warn "Gitleaks not available, using pattern-based scanning"
     SECRETS_FINDINGS=$(run_secrets_scan)
-    log_info "Secrets scan output: $SECRETS_FINDINGS"
+    log_info "Secrets scan completed"
     FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
 fi
 
