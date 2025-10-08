@@ -1,0 +1,44 @@
+name: Ghost Scanner Security Scan
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  ghost-scanner:
+    runs-on: ubuntu-latest
+    name: Ghost Scanner Security Analysis
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for better scanning
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Ghost Scanner CLI
+      run: |
+        npm install -g @ghost-scanner/cli
+    
+    - name: Run Ghost Scanner
+      uses: ghost-scanner/action@v1
+      with:
+        api-key: ${{ secrets.GHOST_SCANNER_API_KEY }}
+        scan-types: 'secrets,dependencies'
+        fail-on-high-risk: false
+        comment-on-pr: true
+        include-ai-analysis: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

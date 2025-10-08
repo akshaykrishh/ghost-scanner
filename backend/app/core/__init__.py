@@ -1,0 +1,1 @@
+# Ghost Scanner Core Package
