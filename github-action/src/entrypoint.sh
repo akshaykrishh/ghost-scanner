@@ -340,15 +340,25 @@ JSON_PAYLOAD="$JSON_PAYLOAD
 
 log_info "Sending JSON payload: $JSON_PAYLOAD"
 
-SCAN_RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/v1/scans/" \
+# Create scan session with robust error handling
+SCAN_RAW_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE_URL/api/v1/scans/" \
     -H "Content-Type: application/json" \
     -d "$JSON_PAYLOAD")
 
-SCAN_ID=$(echo "$SCAN_RESPONSE" | jq -r '.id')
+SCAN_HTTP_CODE=${SCAN_RAW_RESPONSE##*$'\n'}
+SCAN_RESPONSE_BODY=${SCAN_RAW_RESPONSE%$'\n'$SCAN_HTTP_CODE}
+
+if ! echo "$SCAN_RESPONSE_BODY" | jq . >/dev/null 2>&1; then
+    log_error "Scan API returned non-JSON response (HTTP $SCAN_HTTP_CODE)"
+    echo "$SCAN_RESPONSE_BODY"
+    exit 1
+fi
+
+SCAN_ID=$(echo "$SCAN_RESPONSE_BODY" | jq -r '.id')
 
 if [ "$SCAN_ID" = "null" ] || [ -z "$SCAN_ID" ]; then
-    log_error "Failed to create scan session"
-    log_error "Response: $SCAN_RESPONSE"
+    log_error "Failed to create scan session (HTTP $SCAN_HTTP_CODE)"
+    log_error "Response: $SCAN_RESPONSE_BODY"
     exit 1
 fi
 
