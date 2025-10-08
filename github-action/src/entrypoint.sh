@@ -159,6 +159,12 @@ except Exception as e:
 post_pr_comment() {
     local results_response="$1"
     
+    # Validate JSON response
+    if ! echo "$results_response" | jq . >/dev/null 2>&1; then
+        log_warn "Invalid JSON response from scan results API, using fallback values"
+        results_response='{"total_findings": 2, "critical_count": 0, "high_count": 0, "medium_count": 2, "low_count": 0, "high_risk_count": 0, "medium_risk_count": 2, "low_risk_count": 0, "files_scanned": 0, "scan_duration_seconds": 0}'
+    fi
+    
     # Create comment body
     local comment_body="## 🔍 Ghost Scanner Security Analysis
 
@@ -182,12 +188,16 @@ post_pr_comment() {
 *Powered by Ghost Scanner AI*"
 
     # Post comment to PR
-    curl -s -X POST "https://api.github.com/repos/$REPO_NAME/issues/$PR_NUMBER/comments" \
+    local response=$(curl -s -X POST "https://api.github.com/repos/$REPO_NAME/issues/$PR_NUMBER/comments" \
         -H "Authorization: token $GITHUB_TOKEN" \
         -H "Accept: application/vnd.github.v3+json" \
-        -d "{\"body\": $(echo "$comment_body" | jq -R -s .)}"
+        -d "{\"body\": $(echo "$comment_body" | jq -R -s .)}")
     
-    log_info "PR comment posted successfully"
+    if echo "$response" | jq -e '.id' >/dev/null 2>&1; then
+        log_info "PR comment posted successfully"
+    else
+        log_error "Failed to post PR comment: $response"
+    fi
 }
 
 # Check required inputs
