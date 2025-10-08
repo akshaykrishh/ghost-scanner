@@ -112,12 +112,20 @@ ensure_gitleaks() {
 
 # Function to run secrets scan
 run_secrets_scan() {
-    local output
+    # Run Gitleaks if available
+    local gitleaks_output
     if command -v gitleaks >/dev/null 2>&1; then
-        output=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
+        gitleaks_output=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
+        if ! echo "$gitleaks_output" | jq . >/dev/null 2>&1; then
+            gitleaks_output="[]"
+        fi
     else
-        # Simple pattern-based secrets detection
-        output=$(python3 -c "
+        gitleaks_output="[]"
+    fi
+
+    # Pattern-based secrets detection (also scans .txt, .md, .cfg, .ini)
+    local pattern_output
+    pattern_output=$(python3 -c "
 import json
 import re
 import os
@@ -133,7 +141,7 @@ try:
 
     for root, dirs, files in os.walk('.'):
         for file in files:
-            if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml')):
+            if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml', '.txt', '.md', '.cfg', '.ini')):
                 file_path = os.path.join(root, file)
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -142,7 +150,7 @@ try:
                             for match in re.finditer(pattern, content):
                                 findings.append({
                                     'rule_id': f'pattern_{pattern_name}',
-                                    'rule_name': f'Potential {pattern_name.replace(\"_\", \" \").title()}',
+                                    'rule_name': f'Potential {pattern_name.replace("_", " ").title()}',
                                     'severity': 'medium',
                                     'file_path': file_path,
                                     'line_number': content[:match.start()].count('\n') + 1,
@@ -155,14 +163,11 @@ try:
 except Exception as e:
     print('[]')
 " 2>/dev/null)
-    fi
-    
-    # Validate JSON output
-    if echo "$output" | jq . >/dev/null 2>&1; then
-        echo "$output"
-    else
-        echo "[]"
-    fi
+
+    # Merge outputs
+    local merged
+    merged=$(echo "$gitleaks_output" "$pattern_output" | jq -s 'add' 2>/dev/null || echo "[]")
+    echo "$merged"
 }
 
 # Function to run dependency scan
