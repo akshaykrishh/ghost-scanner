@@ -33,118 +33,6 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Check required inputs
-if [ -z "$API_KEY" ]; then
-    log_error "API key is required. Please set GHOST_SCANNER_API_KEY secret."
-    exit 1
-fi
-
-if [ -z "$GITHUB_TOKEN" ]; then
-    log_warn "GitHub token not provided. PR comments will be disabled."
-    COMMENT_ON_PR="false"
-fi
-
-# Get repository information
-REPO_NAME="${GITHUB_REPOSITORY}"
-COMMIT_SHA="${GITHUB_SHA}"
-BRANCH="${GITHUB_REF#refs/heads/}"
-PR_NUMBER="${GITHUB_EVENT_NUMBER:-}"
-
-log_info "Starting Ghost Scanner analysis"
-log_info "Repository: $REPO_NAME"
-log_info "Commit: $COMMIT_SHA"
-log_info "Branch: $BRANCH"
-log_info "Scan types: $SCAN_TYPES"
-
-# Create scan session
-log_info "Creating scan session..."
-
-# Build JSON payload dynamically
-JSON_PAYLOAD="{
-    \"repository_id\": 1,
-    \"scan_type\": \"secrets\",
-    \"commit_sha\": \"$COMMIT_SHA\",
-    \"branch\": \"$BRANCH\""
-
-# Add pull_request_number only if it's not empty
-if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
-    JSON_PAYLOAD="$JSON_PAYLOAD,
-    \"pull_request_number\": $PR_NUMBER"
-fi
-
-JSON_PAYLOAD="$JSON_PAYLOAD
-}"
-
-log_info "Sending JSON payload: $JSON_PAYLOAD"
-
-SCAN_RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/v1/scans/" \
-    -H "Content-Type: application/json" \
-    -d "$JSON_PAYLOAD")
-
-SCAN_ID=$(echo "$SCAN_RESPONSE" | jq -r '.id')
-
-if [ "$SCAN_ID" = "null" ] || [ -z "$SCAN_ID" ]; then
-    log_error "Failed to create scan session"
-    log_error "Response: $SCAN_RESPONSE"
-    exit 1
-fi
-
-log_info "Scan session created: $SCAN_ID"
-
-# Run scans based on scan types
-FINDINGS="[]"
-
-if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
-    log_info "Running secrets scan..."
-    SECRETS_FINDINGS=$(run_secrets_scan)
-    FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
-fi
-
-if [[ "$SCAN_TYPES" == *"dependencies"* ]]; then
-    log_info "Running dependency scan..."
-    DEPENDENCY_FINDINGS=$(run_dependency_scan)
-    FINDINGS=$(echo "$FINDINGS $DEPENDENCY_FINDINGS" | jq -s 'add')
-fi
-
-# Send findings to API
-log_info "Sending findings to Ghost Scanner API..."
-FINDINGS_COUNT=$(echo "$FINDINGS" | jq 'length')
-
-if [ "$FINDINGS_COUNT" -gt 0 ]; then
-    log_warn "Found $FINDINGS_COUNT security findings"
-    
-    # Complete the scan with findings
-    curl -s -X POST "$API_BASE_URL/api/v1/scans/$SCAN_ID/complete" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"findings\": $FINDINGS
-        }"
-    
-    # Get scan results
-    log_info "Getting scan results..."
-    RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results")
-    
-    # Post PR comment if enabled
-    if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ]; then
-        log_info "Posting PR comment..."
-        post_pr_comment "$RESULTS_RESPONSE"
-    fi
-    
-    # Check if we should fail on high risk findings
-    if [ "$FAIL_ON_HIGH_RISK" = "true" ]; then
-        HIGH_RISK_COUNT=$(echo "$RESULTS_RESPONSE" | jq -r '.high_risk_count // 0')
-        if [ "$HIGH_RISK_COUNT" -gt 0 ]; then
-            log_error "Found $HIGH_RISK_COUNT high-risk findings. Failing build."
-            exit 1
-        fi
-    fi
-    
-else
-    log_info "No security findings detected"
-fi
-
-log_info "Ghost Scanner analysis completed successfully"
-
 # Function to run secrets scan
 run_secrets_scan() {
     # Check if gitleaks is available
@@ -299,3 +187,115 @@ post_pr_comment() {
     
     log_info "PR comment posted successfully"
 }
+
+# Check required inputs
+if [ -z "$API_KEY" ]; then
+    log_error "API key is required. Please set GHOST_SCANNER_API_KEY secret."
+    exit 1
+fi
+
+if [ -z "$GITHUB_TOKEN" ]; then
+    log_warn "GitHub token not provided. PR comments will be disabled."
+    COMMENT_ON_PR="false"
+fi
+
+# Get repository information
+REPO_NAME="${GITHUB_REPOSITORY}"
+COMMIT_SHA="${GITHUB_SHA}"
+BRANCH="${GITHUB_REF#refs/heads/}"
+PR_NUMBER="${GITHUB_EVENT_NUMBER:-}"
+
+log_info "Starting Ghost Scanner analysis"
+log_info "Repository: $REPO_NAME"
+log_info "Commit: $COMMIT_SHA"
+log_info "Branch: $BRANCH"
+log_info "Scan types: $SCAN_TYPES"
+
+# Create scan session
+log_info "Creating scan session..."
+
+# Build JSON payload dynamically
+JSON_PAYLOAD="{
+    \"repository_id\": 1,
+    \"scan_type\": \"secrets\",
+    \"commit_sha\": \"$COMMIT_SHA\",
+    \"branch\": \"$BRANCH\""
+
+# Add pull_request_number only if it's not empty
+if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+    JSON_PAYLOAD="$JSON_PAYLOAD,
+    \"pull_request_number\": $PR_NUMBER"
+fi
+
+JSON_PAYLOAD="$JSON_PAYLOAD
+}"
+
+log_info "Sending JSON payload: $JSON_PAYLOAD"
+
+SCAN_RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/v1/scans/" \
+    -H "Content-Type: application/json" \
+    -d "$JSON_PAYLOAD")
+
+SCAN_ID=$(echo "$SCAN_RESPONSE" | jq -r '.id')
+
+if [ "$SCAN_ID" = "null" ] || [ -z "$SCAN_ID" ]; then
+    log_error "Failed to create scan session"
+    log_error "Response: $SCAN_RESPONSE"
+    exit 1
+fi
+
+log_info "Scan session created: $SCAN_ID"
+
+# Run scans based on scan types
+FINDINGS="[]"
+
+if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
+    log_info "Running secrets scan..."
+    SECRETS_FINDINGS=$(run_secrets_scan)
+    FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
+fi
+
+if [[ "$SCAN_TYPES" == *"dependencies"* ]]; then
+    log_info "Running dependency scan..."
+    DEPENDENCY_FINDINGS=$(run_dependency_scan)
+    FINDINGS=$(echo "$FINDINGS $DEPENDENCY_FINDINGS" | jq -s 'add')
+fi
+
+# Send findings to API
+log_info "Sending findings to Ghost Scanner API..."
+FINDINGS_COUNT=$(echo "$FINDINGS" | jq 'length')
+
+if [ "$FINDINGS_COUNT" -gt 0 ]; then
+    log_warn "Found $FINDINGS_COUNT security findings"
+    
+    # Complete the scan with findings
+    curl -s -X POST "$API_BASE_URL/api/v1/scans/$SCAN_ID/complete" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"findings\": $FINDINGS
+        }"
+    
+    # Get scan results
+    log_info "Getting scan results..."
+    RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results")
+    
+    # Post PR comment if enabled
+    if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ]; then
+        log_info "Posting PR comment..."
+        post_pr_comment "$RESULTS_RESPONSE"
+    fi
+    
+    # Check if we should fail on high risk findings
+    if [ "$FAIL_ON_HIGH_RISK" = "true" ]; then
+        HIGH_RISK_COUNT=$(echo "$RESULTS_RESPONSE" | jq -r '.high_risk_count // 0')
+        if [ "$HIGH_RISK_COUNT" -gt 0 ]; then
+            log_error "Found $HIGH_RISK_COUNT high-risk findings. Failing build."
+            exit 1
+        fi
+    fi
+    
+else
+    log_info "No security findings detected"
+fi
+
+log_info "Ghost Scanner analysis completed successfully"
