@@ -1,0 +1,24 @@
+# Test Configuration with Security Issues
+
+# INTENTIONAL SECURITY VULNERABILITIES FOR TESTING GHOST SCANNER
+# DO NOT USE IN PRODUCTION!
+
+# Hardcoded API Keys
+API_KEY = "sk-1234567890abcdef1234567890abcdef"
+DATABASE_PASSWORD = "super_secret_password_123"
+AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+# Database Credentials
+DB_HOST = "localhost"
+DB_USER = "admin"
+DB_PASS = "password123"
+
+# JWT Secret
+JWT_SECRET = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+
+# GitHub Token
+GITHUB_TOKEN = "ghp_1234567890abcdef1234567890abcdef"
+
+# Slack Webhook
+SLACK_WEBHOOK = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"

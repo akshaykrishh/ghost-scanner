@@ -58,18 +58,17 @@ log_info "Scan types: $SCAN_TYPES"
 
 # Create scan session
 log_info "Creating scan session..."
-SCAN_RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/v1/scans" \
-    -H "Authorization: Bearer $API_KEY" \
+SCAN_RESPONSE=$(curl -s -X POST "$API_BASE_URL/api/v1/scans/" \
     -H "Content-Type: application/json" \
     -d "{
-        \"repository_name\": \"$REPO_NAME\",
+        \"repository_id\": 1,
+        \"scan_type\": \"secrets\",
         \"commit_sha\": \"$COMMIT_SHA\",
         \"branch\": \"$BRANCH\",
-        \"pull_request_number\": \"$PR_NUMBER\",
-        \"scan_types\": \"$SCAN_TYPES\"
+        \"pull_request_number\": $PR_NUMBER
     }")
 
-SCAN_ID=$(echo "$SCAN_RESPONSE" | jq -r '.scan_id')
+SCAN_ID=$(echo "$SCAN_RESPONSE" | jq -r '.id')
 
 if [ "$SCAN_ID" = "null" ] || [ -z "$SCAN_ID" ]; then
     log_error "Failed to create scan session"

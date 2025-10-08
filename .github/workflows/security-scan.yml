@@ -1,0 +1,32 @@
+name: Ghost Scanner CI/CD Test
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security Scan Test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for better scanning
+    
+    - name: Run Ghost Scanner
+      uses: ./
+      with:
+        api_url: ${{ secrets.GHOST_SCANNER_API_URL }}
+        api_key: ${{ secrets.GHOST_SCANNER_API_KEY }}
+        scan_types: "secrets,dependencies"
+        fail_on_critical: false  # Don't fail PR for testing
+    
+    - name: Display scan results
+      run: |
+        echo "✅ Ghost Scanner CI/CD test completed!"
+        echo "Check the scan results in the Ghost Scanner dashboard"
+        echo "API URL: ${{ secrets.GHOST_SCANNER_API_URL }}"
