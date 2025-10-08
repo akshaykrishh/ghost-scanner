@@ -34,6 +34,9 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Resolve script directory (where this action's scripts live)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Ensure gitleaks is available; attempt install if missing
 ensure_gitleaks() {
     if command -v gitleaks &> /dev/null; then
@@ -149,7 +152,7 @@ run_secrets_scan() {
 
     # Pattern-based secrets detection via external script to avoid shell escaping issues
     local pattern_output
-    pattern_output=$(python3 "${GITHUB_ACTION_PATH:-$(dirname "$0")}/pattern_scan.py" "$SCAN_SOURCE_PATH" || echo "[]")
+    pattern_output=$(python3 "$SCRIPT_DIR/pattern_scan.py" "$SCAN_SOURCE_PATH" || echo "[]")
 
     # Debug: log pattern-based run and finding count to stderr (do not contaminate JSON)
     {
