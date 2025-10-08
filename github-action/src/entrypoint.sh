@@ -149,7 +149,7 @@ run_secrets_scan() {
 
     # Pattern-based secrets detection via external script to avoid shell escaping issues
     local pattern_output
-    pattern_output=$(python3 "${GITHUB_ACTION_PATH:-$(dirname "$0")}/pattern_scan.py" "$SCAN_SOURCE_PATH" 2>/dev/null || echo "[]")
+    pattern_output=$(python3 "${GITHUB_ACTION_PATH:-$(dirname "$0")}/pattern_scan.py" "$SCAN_SOURCE_PATH" || echo "[]")
 
     # Debug: log pattern-based run and finding count to stderr (do not contaminate JSON)
     {
