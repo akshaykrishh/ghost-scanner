@@ -343,6 +343,13 @@ FINDINGS="[]"
 
 if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
+    # Announce which engine will run (without contaminating JSON)
+    if command -v gitleaks >/dev/null 2>&1; then
+        GL_VER=$(gitleaks version 2>/dev/null | head -n1 || echo "unknown")
+        log_info "Secrets engine: Gitleaks (${GL_VER})"
+    else
+        log_info "Secrets engine: Pattern-based"
+    fi
     SECRETS_FINDINGS=$(run_secrets_scan)
     log_info "Secrets scan completed"
     
