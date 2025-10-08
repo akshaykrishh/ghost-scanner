@@ -40,7 +40,6 @@ run_secrets_scan() {
         log_info "Using Gitleaks for secrets scanning"
         gitleaks detect --source . --format json --no-git || echo "[]"
     else
-        log_warn "Gitleaks not available, using pattern-based scanning"
         # Simple pattern-based secrets detection
         python3 -c "
 import json
@@ -254,6 +253,9 @@ FINDINGS="[]"
 
 if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
+    if ! command -v gitleaks &> /dev/null; then
+        log_warn "Gitleaks not available, using pattern-based scanning"
+    fi
     SECRETS_FINDINGS=$(run_secrets_scan)
     log_info "Secrets scan output: $SECRETS_FINDINGS"
     FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
