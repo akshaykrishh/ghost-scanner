@@ -205,12 +205,23 @@ fi
 REPO_NAME="${GITHUB_REPOSITORY}"
 COMMIT_SHA="${GITHUB_SHA}"
 BRANCH="${GITHUB_REF#refs/heads/}"
-PR_NUMBER="${GITHUB_EVENT_NUMBER:-}"
+
+# Get PR number from different sources
+if [ -n "$GITHUB_EVENT_NUMBER" ]; then
+    PR_NUMBER="$GITHUB_EVENT_NUMBER"
+elif [ -n "$GITHUB_EVENT_PATH" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+    PR_NUMBER=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || echo "")
+elif [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+    PR_NUMBER=$(echo "$GITHUB_REF" | sed 's/refs\/pull\/\([0-9]*\)\/merge/\1/')
+else
+    PR_NUMBER=""
+fi
 
 log_info "Starting Ghost Scanner analysis"
 log_info "Repository: $REPO_NAME"
 log_info "Commit: $COMMIT_SHA"
 log_info "Branch: $BRANCH"
+log_info "PR Number: $PR_NUMBER"
 log_info "Scan types: $SCAN_TYPES"
 
 # Create scan session
@@ -287,9 +298,16 @@ if [ "$FINDINGS_COUNT" -gt 0 ]; then
     RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results")
     
     # Post PR comment if enabled
-    if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ]; then
+    log_info "Checking PR comment conditions:"
+    log_info "COMMENT_ON_PR: $COMMENT_ON_PR"
+    log_info "PR_NUMBER: $PR_NUMBER"
+    log_info "GITHUB_TOKEN available: $([ -n "$GITHUB_TOKEN" ] && echo "yes" || echo "no")"
+    
+    if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ] && [ -n "$GITHUB_TOKEN" ]; then
         log_info "Posting PR comment..."
         post_pr_comment "$RESULTS_RESPONSE"
+    else
+        log_warn "Skipping PR comment - conditions not met"
     fi
     
     # Check if we should fail on high risk findings
