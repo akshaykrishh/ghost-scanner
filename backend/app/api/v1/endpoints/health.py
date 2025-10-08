@@ -6,6 +6,7 @@ Health check and monitoring endpoints.
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.core.database import get_db
 from app.core.config import settings
 import redis
@@ -35,7 +36,7 @@ async def detailed_health_check(db: Session = Depends(get_db)):
     
     # Database check
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         health_status["checks"]["database"] = "healthy"
     except Exception as e:
         logger.error("Database health check failed", error=str(e))
