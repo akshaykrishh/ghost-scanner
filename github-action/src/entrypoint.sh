@@ -114,24 +114,37 @@ ensure_gitleaks() {
 # Function to run secrets scan (union: Gitleaks + pattern-based)
 run_secrets_scan() {
     # Run Gitleaks if available
-    local gitleaks_output
+    local gitleaks_output gitleaks_wt gitleaks_range base_ref
     if command -v gitleaks >/dev/null 2>&1; then
-        gitleaks_output=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
-        if ! echo "$gitleaks_output" | jq . >/dev/null 2>&1; then
-            gitleaks_output="[]"
+        # Working tree scan (no git history)
+        gitleaks_wt=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
+        if ! echo "$gitleaks_wt" | jq . >/dev/null 2>&1; then gitleaks_wt="[]"; fi
+
+        # Commit-range scan for PRs (base..HEAD)
+        base_ref=${GITHUB_BASE_REF:-}
+        if [ -n "$base_ref" ]; then
+            git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
+            gitleaks_range=$(gitleaks detect --source . --format json --log-opts "origin/$base_ref..HEAD" 2>/dev/null || echo "[]")
+            if ! echo "$gitleaks_range" | jq . >/dev/null 2>&1; then gitleaks_range="[]"; fi
+        else
+            gitleaks_range="[]"
         fi
-        # Debug: log gitleaks run and finding count to stderr (do not contaminate JSON)
+
+        # Merge both gitleaks outputs
+        gitleaks_output=$(echo "$gitleaks_wt" "$gitleaks_range" | jq -s 'add' 2>/dev/null || echo "[]")
+
+        # Debug logs (stderr)
         {
             echo "[INFO] Gitleaks executed"
-            echo "[INFO] Gitleaks findings count: $(echo "$gitleaks_output" | jq 'length' 2>/dev/null || echo 0)"
+            echo "[INFO] Gitleaks working-tree count: $(echo "$gitleaks_wt" | jq 'length' 2>/dev/null || echo 0)"
+            echo "[INFO] Gitleaks commit-range base=$base_ref count: $(echo "$gitleaks_range" | jq 'length' 2>/dev/null || echo 0)"
+            echo "[INFO] Gitleaks merged count: $(echo "$gitleaks_output" | jq 'length' 2>/dev/null || echo 0)"
             echo "[INFO] Gitleaks sample (up to 3):"
             echo "$gitleaks_output" | jq '.[0:3]' 2>/dev/null || echo "[]"
         } 1>&2
     else
         gitleaks_output="[]"
-        {
-            echo "[INFO] Gitleaks not available; skipping"
-        } 1>&2
+        { echo "[INFO] Gitleaks not available; skipping"; } 1>&2
     fi
 
     # Pattern-based secrets detection via external script to avoid shell escaping issues
