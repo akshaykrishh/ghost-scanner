@@ -65,10 +65,23 @@ ensure_gitleaks() {
         
         # Download and install
         DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_${OS}_${ARCH}.tar.gz"
+        log_info "Attempting to download Gitleaks from $DOWNLOAD_URL"
         
-        if curl -sSfL "$DOWNLOAD_URL" | tar -xz -C /tmp && \
-           sudo mv /tmp/gitleaks /usr/local/bin/ && \
-           sudo chmod +x /usr/local/bin/gitleaks; then
+        if curl -sSfL "$DOWNLOAD_URL" | tar -xz -C /tmp; then
+            # Find the extracted binary even if nested in a folder
+            BIN_PATH=$(find /tmp -maxdepth 3 -type f -name gitleaks | head -n1)
+            if [ -n "$BIN_PATH" ]; then
+                if sudo mv "$BIN_PATH" /usr/local/bin/ && sudo chmod +x /usr/local/bin/gitleaks; then
+                    :
+                fi
+            else
+                log_warn "Gitleaks binary not found after extraction"
+            fi
+        else
+            log_warn "Failed to download/extract Gitleaks archive"
+        fi
+
+        if command -v gitleaks &> /dev/null; then
             if command -v gitleaks &> /dev/null; then
                 log_info "Gitleaks installed successfully (v${VERSION})"
                 return 0
@@ -77,9 +90,13 @@ ensure_gitleaks() {
         
         # Fallback: try installing to ~/bin if sudo is unavailable
         if curl -sSfL "$DOWNLOAD_URL" | tar -xz -C /tmp && \
-           mkdir -p "$HOME/bin" && \
-           mv /tmp/gitleaks "$HOME/bin/" && \
-           chmod +x "$HOME/bin/gitleaks"; then
+           mkdir -p "$HOME/bin"; then
+            BIN_PATH=$(find /tmp -maxdepth 3 -type f -name gitleaks | head -n1)
+            if [ -n "$BIN_PATH" ]; then
+                mv "$BIN_PATH" "$HOME/bin/" && chmod +x "$HOME/bin/gitleaks"
+            else
+                log_warn "Gitleaks binary not found after extraction (fallback)"
+            fi
             export PATH="$HOME/bin:$PATH"
             if command -v gitleaks &> /dev/null; then
                 log_info "Gitleaks installed to $HOME/bin (v${VERSION})"
