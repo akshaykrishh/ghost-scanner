@@ -75,7 +75,7 @@ app.include_router(api_router, prefix="/api/v1")
 @app.exception_handler(GhostScannerException)
 async def ghost_scanner_exception_handler(request, exc: GhostScannerException):
     logger.error("Ghost Scanner exception", error=str(exc), path=request.url.path)
-    return HTTPException(
+    raise HTTPException(
         status_code=exc.status_code,
         detail=exc.detail
     )
