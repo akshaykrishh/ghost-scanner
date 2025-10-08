@@ -1,44 +1,44 @@
-name: Ghost Scanner Security Scan
+name: 'Ghost Scanner Security Scan'
+description: 'AI-enhanced CI/CD security scanning for secrets and dependencies'
+author: 'Ghost Scanner Team'
 
-on:
-  pull_request:
-    branches: [ main, master, develop ]
-  push:
-    branches: [ main, master ]
+inputs:
+  api_url:
+    description: 'Ghost Scanner API URL'
+    required: true
+    default: 'https://api.ghostscanner.com'
+  api_key:
+    description: 'Ghost Scanner API Key'
+    required: true
+  scan_types:
+    description: 'Types of scans to run (secrets,dependencies)'
+    required: false
+    default: 'secrets,dependencies'
+  fail_on_critical:
+    description: 'Fail the workflow if critical findings are detected'
+    required: false
+    default: 'false'
+  comment_on_pr:
+    description: 'Post scan results as PR comment'
+    required: false
+    default: 'true'
+  include_ai_analysis:
+    description: 'Include AI-powered risk analysis'
+    required: false
+    default: 'true'
 
-jobs:
-  ghost-scanner:
-    runs-on: ubuntu-latest
-    name: Ghost Scanner Security Analysis
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Fetch full history for better scanning
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install Ghost Scanner CLI
-      run: |
-        npm install -g @ghost-scanner/cli
-    
+runs:
+  using: 'composite'
+  steps:
     - name: Run Ghost Scanner
-      uses: ghost-scanner/action@v1
-      with:
-        api-key: ${{ secrets.GHOST_SCANNER_API_KEY }}
-        scan-types: 'secrets,dependencies'
-        fail-on-high-risk: false
-        comment-on-pr: true
-        include-ai-analysis: true
+      shell: bash
+      run: |
+        chmod +x ${{ github.action_path }}/src/entrypoint.sh
+        ${{ github.action_path }}/src/entrypoint.sh
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GHOST_SCANNER_API_URL: ${{ inputs.api_url }}
+        INPUT_API_KEY: ${{ inputs.api_key }}
+        INPUT_SCAN_TYPES: ${{ inputs.scan_types }}
+        INPUT_FAIL_ON_HIGH_RISK: ${{ inputs.fail_on_critical }}
+        INPUT_COMMENT_ON_PR: ${{ inputs.comment_on_pr }}
+        INPUT_INCLUDE_AI_ANALYSIS: ${{ inputs.include_ai_analysis }}
