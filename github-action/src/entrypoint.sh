@@ -94,14 +94,13 @@ ensure_gitleaks() {
 
 # Function to run secrets scan
 run_secrets_scan() {
+    local output
     # Ensure gitleaks is available (attempt install if missing)
-    if ensure_gitleaks; then
-        log_info "Using Gitleaks for secrets scanning"
-        gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]"
+    if ensure_gitleaks >/dev/null 2>&1; then
+        output=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
     else
-        log_warn "Gitleaks not available, using pattern-based scanning"
         # Simple pattern-based secrets detection
-        python3 -c "
+        output=$(python3 -c "
 import json
 import re
 import os
@@ -138,7 +137,14 @@ try:
     print(json.dumps(findings))
 except Exception as e:
     print('[]')
-" 2>/dev/null
+" 2>/dev/null)
+    fi
+    
+    # Validate JSON output
+    if echo "$output" | jq . >/dev/null 2>&1; then
+        echo "$output"
+    else
+        echo "[]"
     fi
 }
 
@@ -339,14 +345,28 @@ if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
     SECRETS_FINDINGS=$(run_secrets_scan)
     log_info "Secrets scan completed"
-    FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
+    
+    # Safely merge findings with error handling
+    if echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add' 2>/dev/null; then
+        FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
+    else
+        log_warn "Failed to parse secrets findings, using empty array"
+        FINDINGS="$FINDINGS"
+    fi
 fi
 
 if [[ "$SCAN_TYPES" == *"dependencies"* ]]; then
     log_info "Running dependency scan..."
     DEPENDENCY_FINDINGS=$(run_dependency_scan)
-    log_info "Dependency scan output: $DEPENDENCY_FINDINGS"
-    FINDINGS=$(echo "$FINDINGS $DEPENDENCY_FINDINGS" | jq -s 'add')
+    log_info "Dependency scan completed"
+    
+    # Safely merge findings with error handling
+    if echo "$FINDINGS $DEPENDENCY_FINDINGS" | jq -s 'add' 2>/dev/null; then
+        FINDINGS=$(echo "$FINDINGS $DEPENDENCY_FINDINGS" | jq -s 'add')
+    else
+        log_warn "Failed to parse dependency findings, using empty array"
+        FINDINGS="$FINDINGS"
+    fi
 fi
 
 # Send findings to API
