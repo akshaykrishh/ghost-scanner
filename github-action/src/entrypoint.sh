@@ -119,8 +119,18 @@ run_secrets_scan() {
         if ! echo "$gitleaks_output" | jq . >/dev/null 2>&1; then
             gitleaks_output="[]"
         fi
+        # Debug: log gitleaks run and finding count to stderr (do not contaminate JSON)
+        {
+            echo "[INFO] Gitleaks executed"
+            echo "[INFO] Gitleaks findings count: $(echo "$gitleaks_output" | jq 'length' 2>/dev/null || echo 0)"
+            echo "[INFO] Gitleaks sample (up to 3):"
+            echo "$gitleaks_output" | jq '.[0:3]' 2>/dev/null || echo "[]"
+        } 1>&2
     else
         gitleaks_output="[]"
+        {
+            echo "[INFO] Gitleaks not available; skipping"
+        } 1>&2
     fi
 
     # Pattern-based secrets detection (also scans .txt, .md, .cfg, .ini)
@@ -163,6 +173,14 @@ try:
 except Exception as e:
     print('[]')
 " 2>/dev/null)
+
+    # Debug: log pattern-based run and finding count to stderr (do not contaminate JSON)
+    {
+        echo "[INFO] Pattern-based scan executed"
+        echo "[INFO] Pattern findings count: $(echo "$pattern_output" | jq 'length' 2>/dev/null || echo 0)"
+        echo "[INFO] Pattern sample (up to 3):"
+        echo "$pattern_output" | jq '.[0:3]' 2>/dev/null || echo "[]"
+    } 1>&2
 
     # Merge outputs
     local merged
