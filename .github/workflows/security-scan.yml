@@ -16,14 +16,24 @@ jobs:
       issues: write
     
     steps:
-    - name: Checkout code
+    - name: Checkout PR source branch (code to scan)
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Fetch full history for better scanning
-        ref: ${{ github.head_ref }}  # Checkout the source branch for PRs
-    
+        fetch-depth: 0
+        ref: ${{ github.head_ref }}
+
+    - name: Checkout action implementation from main (latest scripts)
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: main
+        path: action-src
+
+    - name: Print Gitleaks version (debug)
+      run: gitleaks version || echo "gitleaks not in PATH"
+
     - name: Run Ghost Scanner
-      uses: ./github-action
+      uses: ./action-src/github-action
       with:
         api_url: ${{ secrets.GHOST_SCANNER_API_URL }}
         api_key: ${{ secrets.GHOST_SCANNER_API_KEY }}
