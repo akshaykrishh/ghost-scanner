@@ -343,12 +343,12 @@ log_info "Sending JSON payload: $JSON_PAYLOAD"
 # Prepare common auth header if API key provided
 AUTH_HEADER=""
 if [ -n "$API_KEY" ]; then
-    AUTH_HEADER="-H Authorization: Bearer $API_KEY"
+    AUTH_HEADER="Authorization: Bearer $API_KEY"
 fi
 
 # Create scan session with robust error handling
 SCAN_RAW_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE_URL/api/v1/scans/" \
-    -H "Content-Type: application/json" $AUTH_HEADER \
+    -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
     -d "$JSON_PAYLOAD")
 
 SCAN_HTTP_CODE=${SCAN_RAW_RESPONSE##*$'\n'}
@@ -419,18 +419,18 @@ if [ "$FINDINGS_COUNT" -gt 0 ]; then
     
     # Complete the scan with findings
     curl -s -X POST "$API_BASE_URL/api/v1/scans/$SCAN_ID/complete" \
-        -H "Content-Type: application/json" $AUTH_HEADER \
+        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
         -d "{
             \"findings\": $FINDINGS
         }"
     
     # Get AI-enhanced findings
     log_info "Getting AI-enhanced findings..."
-    AI_FINDINGS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/findings/?scan_id=$SCAN_ID" $AUTH_HEADER)
+    AI_FINDINGS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/findings/?scan_id=$SCAN_ID" ${AUTH_HEADER:+-H "$AUTH_HEADER"})
     
     # Get scan results
     log_info "Getting scan results..."
-    RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results" $AUTH_HEADER)
+    RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results" ${AUTH_HEADER:+-H "$AUTH_HEADER"})
     
     # Post PR comment if enabled
     log_info "Checking PR comment conditions:"
