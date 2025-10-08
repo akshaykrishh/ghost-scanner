@@ -265,6 +265,66 @@ async def complete_scan(
     
     # Commit all findings
     db.commit()
-    
+
+    # Build and store summary in ScanResult for this scan
+    try:
+        # Re-query findings to ensure we include any AI-enriched fields
+        from app.models.models import Finding, ScanResult
+        stored_findings = db.query(Finding).filter(Finding.scan_id == scan_id).all()
+
+        total_findings = len(stored_findings)
+        critical_count = sum(1 for f in stored_findings if (f.severity or "").lower() == "critical")
+        high_count = sum(1 for f in stored_findings if (f.severity or "").lower() == "high")
+        medium_count = sum(1 for f in stored_findings if (f.severity or "").lower() == "medium")
+        low_count = sum(1 for f in stored_findings if (f.severity or "").lower() == "low")
+        info_count = sum(1 for f in stored_findings if (f.severity or "").lower() == "info")
+
+        high_risk_count = sum(1 for f in stored_findings if (f.ai_risk_score or "").lower() == "high")
+        medium_risk_count = sum(1 for f in stored_findings if (f.ai_risk_score or "").lower() == "medium")
+        low_risk_count = sum(1 for f in stored_findings if (f.ai_risk_score or "").lower() == "low")
+
+        files_scanned = len({f.file_path for f in stored_findings if f.file_path})
+        scan_duration_seconds = None
+        if scan.started_at and scan.completed_at:
+            try:
+                scan_duration_seconds = (scan.completed_at - scan.started_at).total_seconds()
+            except Exception:
+                scan_duration_seconds = None
+
+        # Upsert: if a ScanResult already exists (shouldn't), update it; else create
+        existing_result = db.query(ScanResult).filter(ScanResult.scan_id == scan_id).first()
+        if existing_result:
+            existing_result.total_findings = total_findings
+            existing_result.critical_count = critical_count
+            existing_result.high_count = high_count
+            existing_result.medium_count = medium_count
+            existing_result.low_count = low_count
+            existing_result.info_count = info_count
+            existing_result.high_risk_count = high_risk_count
+            existing_result.medium_risk_count = medium_risk_count
+            existing_result.low_risk_count = low_risk_count
+            existing_result.scan_duration_seconds = scan_duration_seconds
+            existing_result.files_scanned = files_scanned
+        else:
+            summary = ScanResult(
+                scan_id=scan_id,
+                total_findings=total_findings,
+                critical_count=critical_count,
+                high_count=high_count,
+                medium_count=medium_count,
+                low_count=low_count,
+                info_count=info_count,
+                high_risk_count=high_risk_count,
+                medium_risk_count=medium_risk_count,
+                low_risk_count=low_risk_count,
+                scan_duration_seconds=scan_duration_seconds,
+                files_scanned=files_scanned,
+            )
+            db.add(summary)
+
+        db.commit()
+    except Exception as e:
+        logger.error("Failed to create scan result summary", scan_id=scan_id, error=str(e))
+
     logger.info("Scan completed successfully", scan_id=scan_id, findings_stored=len(findings))
     return {"message": "Scan completed successfully", "scan_id": scan_id}
