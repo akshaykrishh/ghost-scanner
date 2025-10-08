@@ -323,17 +323,73 @@ log_info "Scan types: $SCAN_TYPES"
 # Create scan session
 log_info "Creating scan session..."
 
-# Build JSON payload dynamically (avoid hardcoded repository_id)
+# Prepare common auth header if API key provided
+AUTH_HEADER=""
+if [ -n "$API_KEY" ]; then
+    AUTH_HEADER="Authorization: Bearer $API_KEY"
+fi
+
+# Resolve repository_id automatically if not provided
+resolve_repository_id() {
+    if [ -n "$REPOSITORY_ID" ]; then
+        return 0
+    fi
+
+    if [ -z "$API_KEY" ]; then
+        log_warn "API key missing; cannot resolve repository_id automatically"
+        return 1
+    fi
+
+    # Lookup by full_name
+    LOOKUP_RESP=$(curl -s -w "\n%{http_code}" -G "$API_BASE_URL/api/v1/repositories" \
+        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
+        --data-urlencode "full_name=$REPO_NAME")
+    LOOKUP_CODE=${LOOKUP_RESP##*$'\n'}
+    LOOKUP_BODY=${LOOKUP_RESP%$'\n'$LOOKUP_CODE}
+
+    if echo "$LOOKUP_BODY" | jq . >/dev/null 2>&1; then
+        REPOSITORY_ID=$(echo "$LOOKUP_BODY" | jq -r '.[0].id // empty')
+    fi
+
+    if [ -n "$REPOSITORY_ID" ]; then
+        log_info "Resolved repository_id: $REPOSITORY_ID"
+        return 0
+    fi
+
+    # Create if not found
+    CREATE_PAYLOAD="{\"full_name\": \"$REPO_NAME\"}"
+    CREATE_RESP=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE_URL/api/v1/repositories" \
+        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
+        -d "$CREATE_PAYLOAD")
+    CREATE_CODE=${CREATE_RESP##*$'\n'}
+    CREATE_BODY=${CREATE_RESP%$'\n'$CREATE_CODE}
+
+    if echo "$CREATE_BODY" | jq . >/dev/null 2>&1; then
+        REPOSITORY_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
+    fi
+
+    if [ -n "$REPOSITORY_ID" ]; then
+        log_info "Created repository and obtained repository_id: $REPOSITORY_ID"
+        return 0
+    fi
+
+    log_warn "Unable to resolve repository_id (lookup HTTP $LOOKUP_CODE, create HTTP $CREATE_CODE)"
+    return 1
+}
+
+log_info "API Base URL: $API_BASE_URL"
+
+if ! resolve_repository_id; then
+    log_error "repository_id is required by API and could not be resolved automatically"
+    exit 1
+fi
+
+# Build JSON payload dynamically including repository_id
 JSON_PAYLOAD="{
     \"scan_type\": \"secrets\",
     \"commit_sha\": \"$COMMIT_SHA\",
-    \"branch\": \"$BRANCH\""
-
-# Add repository_id if provided
-if [ -n "$REPOSITORY_ID" ]; then
-    JSON_PAYLOAD="$JSON_PAYLOAD,
+    \"branch\": \"$BRANCH\",
     \"repository_id\": $REPOSITORY_ID"
-fi
 
 # Add pull_request_number only if it's not empty
 if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
@@ -344,14 +400,7 @@ fi
 JSON_PAYLOAD="$JSON_PAYLOAD
 }"
 
-log_info "API Base URL: $API_BASE_URL"
 log_info "Sending JSON payload: $JSON_PAYLOAD"
-
-# Prepare common auth header if API key provided
-AUTH_HEADER=""
-if [ -n "$API_KEY" ]; then
-    AUTH_HEADER="Authorization: Bearer $API_KEY"
-fi
 
 # Create scan session with robust error handling
 SCAN_RAW_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE_URL/api/v1/scans/" \
