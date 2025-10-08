@@ -1,0 +1,32 @@
+{
+  "name": "test-vulnerable-dependencies",
+  "version": "1.0.0",
+  "description": "Test package with intentionally vulnerable dependencies",
+  "dependencies": {
+    "lodash": "4.17.4",
+    "express": "4.15.2",
+    "jquery": "1.12.4",
+    "moment": "2.18.1",
+    "axios": "0.18.0",
+    "request": "2.81.0",
+    "minimist": "0.0.8",
+    "handlebars": "4.0.11",
+    "marked": "0.3.6",
+    "ws": "1.1.4"
+  },
+  "devDependencies": {
+    "webpack": "3.8.1",
+    "babel-core": "6.26.0",
+    "eslint": "4.19.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "test",
+    "vulnerable",
+    "dependencies"
+  ],
+  "author": "Test Author",
+  "license": "MIT"
+}
