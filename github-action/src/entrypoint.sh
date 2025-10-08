@@ -112,8 +112,7 @@ ensure_gitleaks() {
 # Function to run secrets scan
 run_secrets_scan() {
     local output
-    # Ensure gitleaks is available (attempt install if missing)
-    if ensure_gitleaks >/dev/null 2>&1; then
+    if command -v gitleaks >/dev/null 2>&1; then
         output=$(gitleaks detect --source . --format json --no-git 2>/dev/null || echo "[]")
     else
         # Simple pattern-based secrets detection
@@ -360,7 +359,9 @@ FINDINGS="[]"
 
 if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
-    # Announce which engine will run (without contaminating JSON)
+    # Try to install gitleaks before deciding engine
+    ensure_gitleaks >/dev/null 2>&1 || true
+    # Announce which engine will run (after attempting install)
     if command -v gitleaks >/dev/null 2>&1; then
         GL_VER=$(gitleaks version 2>/dev/null | head -n1 || echo "unknown")
         log_info "Secrets engine: Gitleaks (${GL_VER})"
