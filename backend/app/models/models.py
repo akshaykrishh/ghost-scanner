@@ -71,8 +71,9 @@ class Scan(Base):
     __tablename__ = "scans"
     
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
-    repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
+    repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=True)
+    repo_full_name = Column(String(255), nullable=True, index=True)
     scan_type = Column(String(50), nullable=False)
     commit_sha = Column(String(40), nullable=False)
     branch = Column(String(255), nullable=False)
@@ -93,8 +94,9 @@ class Finding(Base):
     __tablename__ = "findings"
     
     id = Column(Integer, primary_key=True, index=True)
-    repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=False)
+    repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=True)
     scan_id = Column(Integer, ForeignKey("scans.id"), nullable=False)
+    repo_full_name = Column(String(255), nullable=True)
     
     # Finding details
     rule_id = Column(String(255), nullable=False)

@@ -329,49 +329,12 @@ if [ -n "$API_KEY" ]; then
     AUTH_HEADER="Authorization: Bearer $API_KEY"
 fi
 
-# Resolve repository_id automatically if not provided
-resolve_repository_id() {
-    if [ -n "$REPOSITORY_ID" ]; then
-        return 0
-    fi
-
-    if [ -z "$API_KEY" ]; then
-        log_warn "API key missing; cannot resolve repository_id automatically"
-        return 1
-    fi
-
-    # Lookup by listing repositories and filtering by full_name
-    LOOKUP_RESP=$(curl -s -w "\n%{http_code}" -G "$API_BASE_URL/api/v1/repositories" \
-        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"})
-    LOOKUP_CODE=${LOOKUP_RESP##*$'\n'}
-    LOOKUP_BODY=${LOOKUP_RESP%$'\n'$LOOKUP_CODE}
-
-    if echo "$LOOKUP_BODY" | jq . >/dev/null 2>&1; then
-        REPOSITORY_ID=$(echo "$LOOKUP_BODY" | jq -r --arg full "$REPO_NAME" '.[] | select(.full_name == $full) | .id' | head -n1)
-    fi
-
-    if [ -n "$REPOSITORY_ID" ]; then
-        log_info "Resolved repository_id: $REPOSITORY_ID"
-        return 0
-    fi
-
-    log_warn "Unable to resolve repository_id from list (HTTP $LOOKUP_CODE)"
-    return 1
-}
-
-log_info "API Base URL: $API_BASE_URL"
-
-if ! resolve_repository_id; then
-    log_error "repository_id is required by API and could not be resolved automatically"
-    exit 1
-fi
-
-# Build JSON payload dynamically including repository_id
+# Build JSON payload dynamically including repo_full_name (simplified backend contract)
 JSON_PAYLOAD="{
     \"scan_type\": \"secrets\",
     \"commit_sha\": \"$COMMIT_SHA\",
     \"branch\": \"$BRANCH\",
-    \"repository_id\": $REPOSITORY_ID"
+    \"repo_full_name\": \"$REPO_NAME\""
 
 # Add pull_request_number only if it's not empty
 if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then

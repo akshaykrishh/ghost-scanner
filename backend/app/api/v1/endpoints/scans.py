@@ -22,16 +22,19 @@ logger = structlog.get_logger()
 
 # Pydantic models for API
 class ScanCreate(BaseModel):
-    repository_id: int
     scan_type: str
     commit_sha: str
     branch: str
     pull_request_number: Optional[int] = None
     metadata: Optional[dict] = None
+    # New simplified identification
+    repo_full_name: Optional[str] = None
+    repository_id: Optional[int] = None
 
 class ScanResponse(BaseModel):
     id: int
-    repository_id: int
+    repository_id: Optional[int]
+    repo_full_name: Optional[str]
     scan_type: str
     commit_sha: str
     branch: str
@@ -40,7 +43,7 @@ class ScanResponse(BaseModel):
     started_at: datetime
     completed_at: Optional[datetime]
     error_message: Optional[str]
-    metadata: Optional[dict]
+    metadata_json: Optional[dict]
     
     class Config:
         from_attributes = True
@@ -69,21 +72,35 @@ async def create_scan(
 ):
     """Create a new security scan."""
     logger.info("Creating new scan", scan_data=scan_data.dict())
-    
-    # Validate repository exists
-    repository = db.query(Repository).filter(Repository.id == scan_data.repository_id).first()
-    if not repository:
-        raise NotFoundError(f"Repository with ID {scan_data.repository_id} not found")
-    
+
+    client_id = None
+    repository_id = None
+    repo_full_name = None
+
+    # Prefer repository_id if provided and valid
+    if scan_data.repository_id:
+        repository = db.query(Repository).filter(Repository.id == scan_data.repository_id).first()
+        if not repository:
+            raise NotFoundError(f"Repository with ID {scan_data.repository_id} not found")
+        client_id = repository.client_id
+        repository_id = repository.id
+        repo_full_name = repository.full_name
+    elif scan_data.repo_full_name:
+        # Simplified flow: no repository lookup required
+        repo_full_name = scan_data.repo_full_name
+    else:
+        raise ValidationError("Either repository_id or repo_full_name must be provided")
+
     # Create scan
     scan = Scan(
-        client_id=repository.client_id,
-        repository_id=scan_data.repository_id,
+        client_id=client_id,
+        repository_id=repository_id,
+        repo_full_name=repo_full_name,
         scan_type=scan_data.scan_type,
         commit_sha=scan_data.commit_sha,
         branch=scan_data.branch,
         pull_request_number=scan_data.pull_request_number,
-        metadata=scan_data.metadata
+        metadata_json=scan_data.metadata
     )
     
     db.add(scan)
@@ -108,6 +125,7 @@ async def get_scan(
 @router.get("/", response_model=List[ScanResponse])
 async def list_scans(
     repository_id: Optional[int] = None,
+    repo_full_name: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
@@ -118,6 +136,8 @@ async def list_scans(
     
     if repository_id:
         query = query.filter(Scan.repository_id == repository_id)
+    if repo_full_name:
+        query = query.filter(Scan.repo_full_name == repo_full_name)
     
     if status:
         query = query.filter(Scan.status == status)
@@ -196,6 +216,7 @@ async def complete_scan(
             from app.models.models import Finding
             finding = Finding(
                 repository_id=scan.repository_id,
+                repo_full_name=scan.repo_full_name,
                 scan_id=scan_id,
                 rule_id=finding_data.get("rule_id", "unknown"),
                 rule_name=finding_data.get("rule_name", "Unknown Rule"),
@@ -222,6 +243,7 @@ async def complete_scan(
             from app.models.models import Finding
             finding = Finding(
                 repository_id=scan.repository_id,
+                repo_full_name=scan.repo_full_name,
                 scan_id=scan_id,
                 rule_id=finding_data.get("rule_id", "unknown"),
                 rule_name=finding_data.get("rule_name", "Unknown Rule"),
