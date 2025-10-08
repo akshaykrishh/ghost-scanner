@@ -111,6 +111,7 @@ ensure_gitleaks() {
 }
 
 # Function to run secrets scan
+# Function to run secrets scan (union: Gitleaks + pattern-based)
 run_secrets_scan() {
     # Run Gitleaks if available
     local gitleaks_output
@@ -133,52 +134,9 @@ run_secrets_scan() {
         } 1>&2
     fi
 
-    # Pattern-based secrets detection (also scans .txt, .md, .cfg, .ini)
+    # Pattern-based secrets detection via external script to avoid shell escaping issues
     local pattern_output
-    pattern_output=$(python3 -c "
-import json
-import re
-import os
-import sys
-
-try:
-    findings = []
-    patterns = {
-        'api_key': r'(?i)\(api\[_-]\?key\|apikey\)\\s*[:=]\\s*[\\"\\']?([a-zA-Z0-9]{20,})[\\"\\']?',
-        'aws_access_key_id': r'(?i)\(aws\[_-]\?access\[_-]\?key\[_-]\?id\)\\s*[:=]\\s*[\\"\\']?(AKIA[0-9A-Z]{16})[\\"\\']?',
-        'aws_secret_access_key': r'(?i)\(aws\[_-]\?secret\[_-]\?access\[_-]\?key\)\\s*[:=]\\s*[\\"\\']?([A-Za-z0-9/+=]{40})[\\"\\']?',
-        'password': r'(?i)\(password\|passwd\|pwd\)\\s*[:=]\\s*[\\"\\']?([^\\"\\']{8,})[\\"\\']?',
-        'stripe_key': r'(?i)sk_\(live\|test\)_[A-Za-z0-9]{20,}',
-        'github_token': r'ghp_[A-Za-z0-9]{36,}',
-        'slack_webhook': r'https://hooks\\.slack\\.com/services/[A-Za-z0-9/]+',
-        'discord_webhook': r'https://discord\\.com/api/webhooks/[A-Za-z0-9_/.-]+',
-        'rsa_private_key': r'-----BEGIN \(RSA \)?PRIVATE KEY-----[\\s\\S]*?-----END \(RSA \)?PRIVATE KEY-----'
-    }
-
-    for root, dirs, files in os.walk('.'):
-        for file in files:
-            if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml', '.txt', '.md', '.cfg', '.ini', '.pem', '.key')):
-                file_path = os.path.join(root, file)
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        for pattern_name, pattern in patterns.items():
-                            for match in re.finditer(pattern, content):
-                                findings.append({
-                                    'rule_id': f'pattern_{pattern_name}',
-                                    'rule_name': f'Potential {pattern_name.replace(\"_\", \" \" ).title()}',
-                                    'severity': 'medium',
-                                    'file_path': file_path,
-                                    'line_number': content[:match.start()].count('\\n') + 1,
-                                    'description': f'Potential {pattern_name} detected'
-                                })
-                except:
-                    pass
-
-    print(json.dumps(findings))
-except Exception as e:
-    print('[]')
-" 2>/dev/null)
+    pattern_output=$(python3 "${GITHUB_ACTION_PATH:-$(dirname "$0")}/pattern_scan.py" . 2>/dev/null || echo "[]")
 
     # Debug: log pattern-based run and finding count to stderr (do not contaminate JSON)
     {
