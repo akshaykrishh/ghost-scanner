@@ -18,7 +18,7 @@ jobs:
         fetch-depth: 0  # Fetch full history for better scanning
     
     - name: Run Ghost Scanner
-      uses: ./
+      uses: ./github-action
       with:
         api_url: ${{ secrets.GHOST_SCANNER_API_URL }}
         api_key: ${{ secrets.GHOST_SCANNER_API_KEY }}
