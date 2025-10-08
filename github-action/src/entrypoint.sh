@@ -340,15 +340,14 @@ resolve_repository_id() {
         return 1
     fi
 
-    # Lookup by full_name
+    # Lookup by listing repositories and filtering by full_name
     LOOKUP_RESP=$(curl -s -w "\n%{http_code}" -G "$API_BASE_URL/api/v1/repositories" \
-        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
-        --data-urlencode "full_name=$REPO_NAME")
+        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"})
     LOOKUP_CODE=${LOOKUP_RESP##*$'\n'}
     LOOKUP_BODY=${LOOKUP_RESP%$'\n'$LOOKUP_CODE}
 
     if echo "$LOOKUP_BODY" | jq . >/dev/null 2>&1; then
-        REPOSITORY_ID=$(echo "$LOOKUP_BODY" | jq -r '.[0].id // empty')
+        REPOSITORY_ID=$(echo "$LOOKUP_BODY" | jq -r --arg full "$REPO_NAME" '.[] | select(.full_name == $full) | .id' | head -n1)
     fi
 
     if [ -n "$REPOSITORY_ID" ]; then
@@ -356,24 +355,7 @@ resolve_repository_id() {
         return 0
     fi
 
-    # Create if not found
-    CREATE_PAYLOAD="{\"full_name\": \"$REPO_NAME\"}"
-    CREATE_RESP=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE_URL/api/v1/repositories" \
-        -H "Content-Type: application/json" ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
-        -d "$CREATE_PAYLOAD")
-    CREATE_CODE=${CREATE_RESP##*$'\n'}
-    CREATE_BODY=${CREATE_RESP%$'\n'$CREATE_CODE}
-
-    if echo "$CREATE_BODY" | jq . >/dev/null 2>&1; then
-        REPOSITORY_ID=$(echo "$CREATE_BODY" | jq -r '.id // empty')
-    fi
-
-    if [ -n "$REPOSITORY_ID" ]; then
-        log_info "Created repository and obtained repository_id: $REPOSITORY_ID"
-        return 0
-    fi
-
-    log_warn "Unable to resolve repository_id (lookup HTTP $LOOKUP_CODE, create HTTP $CREATE_CODE)"
+    log_warn "Unable to resolve repository_id from list (HTTP $LOOKUP_CODE)"
     return 1
 }
 
