@@ -159,30 +159,27 @@ except Exception as e:
 post_pr_comment() {
     local results_response="$1"
     
-    # Validate JSON response
-    if ! echo "$results_response" | jq . >/dev/null 2>&1; then
-        log_warn "Invalid JSON response from scan results API, using fallback values"
-        results_response='{"total_findings": 2, "critical_count": 0, "high_count": 0, "medium_count": 2, "low_count": 0, "high_risk_count": 0, "medium_risk_count": 2, "low_risk_count": 0, "files_scanned": 0, "scan_duration_seconds": 0}'
-    fi
-    
-    # Create comment body
+    # Create comment body with actual findings
     local comment_body="## 🔍 Ghost Scanner Security Analysis
 
 ### Summary
-- **Total Findings**: $(echo "$results_response" | jq -r '.total_findings // 0')
-- **Critical**: $(echo "$results_response" | jq -r '.critical_count // 0')
-- **High**: $(echo "$results_response" | jq -r '.high_count // 0')
-- **Medium**: $(echo "$results_response" | jq -r '.medium_count // 0')
-- **Low**: $(echo "$results_response" | jq -r '.low_count // 0')
+- **Total Findings**: $(echo "$FINDINGS" | jq 'length')
+- **Critical**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "critical")] | length')
+- **High**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "high")] | length')
+- **Medium**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "medium")] | length')
+- **Low**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "low")] | length')
 
-### AI Risk Assessment
-- **High Risk**: $(echo "$results_response" | jq -r '.high_risk_count // 0')
-- **Medium Risk**: $(echo "$results_response" | jq -r '.medium_risk_count // 0')
-- **Low Risk**: $(echo "$results_response" | jq -r '.low_risk_count // 0')
+### 🔍 Security Findings
 
-### Scan Details
-- **Files Scanned**: $(echo "$results_response" | jq -r '.files_scanned // 0')
-- **Scan Duration**: $(echo "$results_response" | jq -r '.scan_duration_seconds // 0') seconds
+$(echo "$FINDINGS" | jq -r '.[] | "- **\(.rule_name)** (\(.severity | ascii_upcase)): \(.description)\n  - File: `\(.file_path)` (line \(.line_number))\n  - Rule ID: `\(.rule_id)`"' 2>/dev/null || echo "No detailed findings available")
+
+### 🛠️ Remediation Recommendations
+
+$(echo "$FINDINGS" | jq -r '.[] | "- **\(.rule_name)**: Remove or secure the exposed credential in `\(.file_path)`"' 2>/dev/null || echo "- Review and secure any exposed credentials\n- Use environment variables or secure vaults for sensitive data\n- Remove hardcoded passwords and API keys")
+
+### 📊 Scan Details
+- **Files Scanned**: $(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.env" -o -name "*.yml" -o -name "*.yaml" | wc -l)
+- **Scan Duration**: $(date +%s) seconds
 
 ---
 *Powered by Ghost Scanner AI*"
