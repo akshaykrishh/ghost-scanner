@@ -15,9 +15,13 @@ def run_pattern_scan(root_dir: str) -> None:
         'aws_secret_access_key': r'(?i)(aws[_-]?secret[_-]?access[_-]?key)\s*[:=]\s*["\']?([A-Za-z0-9/+=]{40})["\']?',
         # Password-like
         'password': r'(?i)(password|passwd|pwd)\s*[:=]\s*["\']?([^"\']{8,})["\']?',
+        'password_any': r'(?i)(password|passwd|pwd)\s*[:=]\s*[^\n]+' ,
+        # Generic token/secret/key label with len>=8
+        'generic_secret': r'(?i)(token|secret|key)\s*[:=]\s*["\']?([A-Za-z0-9_\-]{8,})["\']?',
         # Common providers
         'stripe_key': r'(?i)sk_(live|test)_[A-Za-z0-9]{20,}',
         'github_token': r'ghp_[A-Za-z0-9]{36,}',
+        'gitlab_token': r'glpat-[A-Za-z0-9\-]{20,}',
         'slack_webhook': r'https://hooks\.slack\.com/services/[A-Za-z0-9/]+',
         'discord_webhook': r'https://discord\.com/api/webhooks/[A-Za-z0-9_/.-]+',
         # Keys
@@ -31,9 +35,16 @@ def run_pattern_scan(root_dir: str) -> None:
 
     for base, _dirs, files in os.walk(root_dir):
         for name in files:
-            if not name.endswith(include_exts):
-                continue
             file_path = os.path.join(base, name)
+            # Include files with known text extensions OR any small text-like file (no NUL bytes)
+            if not name.endswith(include_exts):
+                try:
+                    with open(file_path, 'rb') as fb:
+                        chunk = fb.read(8192)
+                        if b'\x00' in chunk:
+                            continue  # likely binary
+                except Exception:
+                    continue
             try:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     content = f.read()
