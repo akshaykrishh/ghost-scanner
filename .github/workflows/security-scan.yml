@@ -20,6 +20,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Fetch full history for better scanning
+        ref: ${{ github.head_ref }}  # Checkout the source branch for PRs
     
     - name: Run Ghost Scanner
       uses: ./github-action
