@@ -157,25 +157,31 @@ except Exception as e:
 
 # Function to post PR comment
 post_pr_comment() {
-    local results_response="$1"
+    local ai_findings_response="$1"
+    local results_response="$2"
     
-    # Create comment body with actual findings
+    # Create comment body with AI-enhanced findings
     local comment_body="## 🔍 Ghost Scanner Security Analysis
 
 ### Summary
-- **Total Findings**: $(echo "$FINDINGS" | jq 'length')
-- **Critical**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "critical")] | length')
-- **High**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "high")] | length')
-- **Medium**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "medium")] | length')
-- **Low**: $(echo "$FINDINGS" | jq '[.[] | select(.severity == "low")] | length')
+- **Total Findings**: $(echo "$ai_findings_response" | jq 'length')
+- **Critical**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "critical")] | length')
+- **High**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "high")] | length')
+- **Medium**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "medium")] | length')
+- **Low**: $(echo "$ai_findings_response" | jq '[.[] | select(.severity == "low")] | length')
+
+### 🤖 AI Risk Assessment
+- **High Risk**: $(echo "$ai_findings_response" | jq '[.[] | select(.ai_risk_score == "high")] | length')
+- **Medium Risk**: $(echo "$ai_findings_response" | jq '[.[] | select(.ai_risk_score == "medium")] | length')
+- **Low Risk**: $(echo "$ai_findings_response" | jq '[.[] | select(.ai_risk_score == "low")] | length')
 
 ### 🔍 Security Findings
 
-$(echo "$FINDINGS" | jq -r '.[] | "- **\(.rule_name)** (\(.severity | ascii_upcase)): \(.description)\n  - File: `\(.file_path)` (line \(.line_number))\n  - Rule ID: `\(.rule_id)`"' 2>/dev/null || echo "No detailed findings available")
+$(echo "$ai_findings_response" | jq -r '.[] | "- **\(.rule_name)** (\(.severity | ascii_upcase) | AI Risk: \(.ai_risk_score // "unknown" | ascii_upcase))\n  - File: `\(.file_path)` (line \(.line_number))\n  - AI Explanation: \(.ai_explanation // "No AI analysis available")\n  - AI Confidence: \(.ai_confidence // "N/A")"' 2>/dev/null || echo "No detailed findings available")
 
-### 🛠️ Remediation Recommendations
+### 🛠️ AI-Powered Remediation Recommendations
 
-$(echo "$FINDINGS" | jq -r '.[] | "- **\(.rule_name)**: Remove or secure the exposed credential in `\(.file_path)`"' 2>/dev/null || echo "- Review and secure any exposed credentials\n- Use environment variables or secure vaults for sensitive data\n- Remove hardcoded passwords and API keys")
+$(echo "$ai_findings_response" | jq -r '.[] | "- **\(.rule_name)**: \(.ai_remediation // "No AI remediation available")"' 2>/dev/null || echo "- Review and secure any exposed credentials\n- Use environment variables or secure vaults for sensitive data\n- Remove hardcoded passwords and API keys")
 
 ### 📊 Scan Details
 - **Files Scanned**: $(find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.env" -o -name "*.yml" -o -name "*.yaml" | wc -l)
@@ -300,6 +306,10 @@ if [ "$FINDINGS_COUNT" -gt 0 ]; then
             \"findings\": $FINDINGS
         }"
     
+    # Get AI-enhanced findings
+    log_info "Getting AI-enhanced findings..."
+    AI_FINDINGS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/findings/?scan_id=$SCAN_ID")
+    
     # Get scan results
     log_info "Getting scan results..."
     RESULTS_RESPONSE=$(curl -s -X GET "$API_BASE_URL/api/v1/scans/$SCAN_ID/results")
@@ -312,7 +322,7 @@ if [ "$FINDINGS_COUNT" -gt 0 ]; then
     
     if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ] && [ -n "$GITHUB_TOKEN" ]; then
         log_info "Posting PR comment..."
-        post_pr_comment "$RESULTS_RESPONSE"
+        post_pr_comment "$AI_FINDINGS_RESPONSE" "$RESULTS_RESPONSE"
     else
         log_warn "Skipping PR comment - conditions not met"
     fi
