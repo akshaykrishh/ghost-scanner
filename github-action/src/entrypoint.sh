@@ -245,6 +245,7 @@ except Exception as e:
 post_pr_comment() {
     local ai_findings_response="$1"
     local results_response="$2"
+    local local_findings_json="$3"
 
     # Choose findings JSON: prefer AI array if valid, else results.findings, else []
     local findings_json
@@ -252,6 +253,13 @@ post_pr_comment() {
         findings_json="$ai_findings_response"
     else
         findings_json=$(echo "$results_response" | jq -c '.findings // []' 2>/dev/null || echo "[]")
+        if ! echo "$findings_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
+            if echo "$local_findings_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
+                findings_json="$local_findings_json"
+            else
+                findings_json="[]"
+            fi
+        fi
     fi
 
     # Precompute counts with fallbacks
@@ -489,7 +497,7 @@ if [ "$FINDINGS_COUNT" -gt 0 ]; then
     
     if [ "$COMMENT_ON_PR" = "true" ] && [ -n "$PR_NUMBER" ] && [ -n "$GITHUB_TOKEN" ]; then
         log_info "Posting PR comment..."
-        post_pr_comment "$AI_FINDINGS_RESPONSE" "$RESULTS_RESPONSE"
+        post_pr_comment "$AI_FINDINGS_RESPONSE" "$RESULTS_RESPONSE" "$FINDINGS"
     else
         log_warn "Skipping PR comment - conditions not met"
     fi
