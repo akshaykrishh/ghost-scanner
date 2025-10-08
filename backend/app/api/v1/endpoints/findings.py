@@ -20,7 +20,7 @@ logger = structlog.get_logger()
 
 class FindingResponse(BaseModel):
     id: int
-    repository_id: int
+    repository_id: Optional[int]
     scan_id: int
     rule_id: str
     rule_name: str

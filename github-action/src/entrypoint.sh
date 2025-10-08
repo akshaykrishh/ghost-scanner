@@ -247,18 +247,45 @@ post_pr_comment() {
     local results_response="$2"
     local local_findings_json="$3"
 
-    # Choose findings JSON: prefer AI array if valid, else results.findings, else []
-    local findings_json
+    # Choose findings JSON with priority and non-empty preference:
+    # 1) AI findings if array and length>0
+    # 2) API results.findings if array and length>0
+    # 3) Local findings if array and length>0
+    # 4) Otherwise fallback to the first valid array among them, else []
+    local findings_json ai_ok ai_len api_json api_ok api_len local_ok local_len
+    ai_ok=false; api_ok=false; local_ok=false
+    ai_len=0; api_len=0; local_len=0
+
     if echo "$ai_findings_response" | jq -e 'type=="array"' >/dev/null 2>&1; then
+        ai_ok=true
+        ai_len=$(echo "$ai_findings_response" | jq 'length' 2>/dev/null || echo 0)
+    fi
+    api_json=$(echo "$results_response" | jq -c '.findings // []' 2>/dev/null || echo "[]")
+    if echo "$api_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
+        api_ok=true
+        api_len=$(echo "$api_json" | jq 'length' 2>/dev/null || echo 0)
+    fi
+    if echo "$local_findings_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
+        local_ok=true
+        local_len=$(echo "$local_findings_json" | jq 'length' 2>/dev/null || echo 0)
+    fi
+
+    if [ "$ai_ok" = true ] && [ "$ai_len" -gt 0 ]; then
         findings_json="$ai_findings_response"
+    elif [ "$api_ok" = true ] && [ "$api_len" -gt 0 ]; then
+        findings_json="$api_json"
+    elif [ "$local_ok" = true ] && [ "$local_len" -gt 0 ]; then
+        findings_json="$local_findings_json"
     else
-        findings_json=$(echo "$results_response" | jq -c '.findings // []' 2>/dev/null || echo "[]")
-        if ! echo "$findings_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
-            if echo "$local_findings_json" | jq -e 'type=="array"' >/dev/null 2>&1; then
-                findings_json="$local_findings_json"
-            else
-                findings_json="[]"
-            fi
+        # fallback to any valid array in order AI -> API -> LOCAL, else []
+        if [ "$ai_ok" = true ]; then
+            findings_json="$ai_findings_response"
+        elif [ "$api_ok" = true ]; then
+            findings_json="$api_json"
+        elif [ "$local_ok" = true ]; then
+            findings_json="$local_findings_json"
+        else
+            findings_json="[]"
         fi
     fi
 
