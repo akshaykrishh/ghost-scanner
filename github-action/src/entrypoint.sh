@@ -48,34 +48,37 @@ import re
 import os
 import sys
 
-findings = []
-patterns = {
-    'api_key': r'(?i)(api[_-]?key|apikey)\s*[:=]\s*[\"\\']?([a-zA-Z0-9]{20,})[\"\\']?',
-    'aws_key': r'(?i)(aws[_-]?access[_-]?key[_-]?id)\s*[:=]\s*[\"\\']?(AKIA[0-9A-Z]{16})[\"\\']?',
-    'password': r'(?i)(password|passwd|pwd)\s*[:=]\s*[\"\\']?([^\"\\']{8,})[\"\\']?'
-}
+try:
+    findings = []
+    patterns = {
+        'api_key': r'(?i)(api[_-]?key|apikey)\s*[:=]\s*[\"\\']?([a-zA-Z0-9]{20,})[\"\\']?',
+        'aws_key': r'(?i)(aws[_-]?access[_-]?key[_-]?id)\s*[:=]\s*[\"\\']?(AKIA[0-9A-Z]{16})[\"\\']?',
+        'password': r'(?i)(password|passwd|pwd)\s*[:=]\s*[\"\\']?([^\"\\']{8,})[\"\\']?'
+    }
 
-for root, dirs, files in os.walk('.'):
-    for file in files:
-        if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml')):
-            file_path = os.path.join(root, file)
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    for pattern_name, pattern in patterns.items():
-                        for match in re.finditer(pattern, content):
-                            findings.append({
-                                'rule_id': f'pattern_{pattern_name}',
-                                'rule_name': f'Potential {pattern_name.replace(\"_\", \" \").title()}',
-                                'severity': 'medium',
-                                'file_path': file_path,
-                                'line_number': content[:match.start()].count('\n') + 1,
-                                'description': f'Potential {pattern_name} detected'
-                            })
-            except:
-                pass
+    for root, dirs, files in os.walk('.'):
+        for file in files:
+            if file.endswith(('.py', '.js', '.ts', '.json', '.env', '.yml', '.yaml')):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                        for pattern_name, pattern in patterns.items():
+                            for match in re.finditer(pattern, content):
+                                findings.append({
+                                    'rule_id': f'pattern_{pattern_name}',
+                                    'rule_name': f'Potential {pattern_name.replace(\"_\", \" \").title()}',
+                                    'severity': 'medium',
+                                    'file_path': file_path,
+                                    'line_number': content[:match.start()].count('\n') + 1,
+                                    'description': f'Potential {pattern_name} detected'
+                                })
+                except:
+                    pass
 
-print(json.dumps(findings))
+    print(json.dumps(findings))
+except Exception as e:
+    print('[]')
 "
     fi
 }
@@ -111,7 +114,7 @@ try:
             })
     
     print(json.dumps(findings))
-except:
+except Exception as e:
     print('[]')
 "
     fi
@@ -145,7 +148,7 @@ try:
                 })
     
     print(json.dumps(findings))
-except:
+except Exception as e:
     print('[]')
 "
     fi
@@ -252,12 +255,14 @@ FINDINGS="[]"
 if [[ "$SCAN_TYPES" == *"secrets"* ]]; then
     log_info "Running secrets scan..."
     SECRETS_FINDINGS=$(run_secrets_scan)
+    log_info "Secrets scan output: $SECRETS_FINDINGS"
     FINDINGS=$(echo "$FINDINGS $SECRETS_FINDINGS" | jq -s 'add')
 fi
 
 if [[ "$SCAN_TYPES" == *"dependencies"* ]]; then
     log_info "Running dependency scan..."
     DEPENDENCY_FINDINGS=$(run_dependency_scan)
+    log_info "Dependency scan output: $DEPENDENCY_FINDINGS"
     FINDINGS=$(echo "$FINDINGS $DEPENDENCY_FINDINGS" | jq -s 'add')
 fi
 
