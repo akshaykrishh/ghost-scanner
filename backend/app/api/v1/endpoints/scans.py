@@ -180,6 +180,69 @@ async def complete_scan(
     db.commit()
     
     # Process findings and run AI analysis
-    logger.info("Processing scan findings", scan_id=scan_id, findings_count=len(findings_data.get("findings", [])))
+    findings = findings_data.get("findings", [])
+    logger.info("Processing scan findings", scan_id=scan_id, findings_count=len(findings))
     
+    # Initialize AI service
+    ai_service = AIService()
+    
+    # Store findings and run AI analysis
+    for finding_data in findings:
+        try:
+            # Run AI analysis
+            ai_analysis = ai_service.analyze_finding(finding_data)
+            
+            # Create Finding record
+            from app.models.models import Finding
+            finding = Finding(
+                repository_id=scan.repository_id,
+                scan_id=scan_id,
+                rule_id=finding_data.get("rule_id", "unknown"),
+                rule_name=finding_data.get("rule_name", "Unknown Rule"),
+                severity=finding_data.get("severity", "medium"),
+                confidence=finding_data.get("confidence"),
+                file_path=finding_data.get("file_path", ""),
+                line_number=finding_data.get("line_number"),
+                column_number=finding_data.get("column_number"),
+                secret_value=finding_data.get("secret_value"),
+                description=finding_data.get("description"),
+                raw_data=finding_data,
+                # AI Analysis results
+                ai_risk_score=ai_analysis.get("ai_risk_score"),
+                ai_confidence=ai_analysis.get("ai_confidence"),
+                ai_explanation=ai_analysis.get("ai_explanation"),
+                ai_remediation=ai_analysis.get("ai_remediation")
+            )
+            
+            db.add(finding)
+            
+        except Exception as e:
+            logger.error("Failed to process finding", error=str(e), finding_data=finding_data)
+            # Create finding without AI analysis as fallback
+            from app.models.models import Finding
+            finding = Finding(
+                repository_id=scan.repository_id,
+                scan_id=scan_id,
+                rule_id=finding_data.get("rule_id", "unknown"),
+                rule_name=finding_data.get("rule_name", "Unknown Rule"),
+                severity=finding_data.get("severity", "medium"),
+                confidence=finding_data.get("confidence"),
+                file_path=finding_data.get("file_path", ""),
+                line_number=finding_data.get("line_number"),
+                column_number=finding_data.get("column_number"),
+                secret_value=finding_data.get("secret_value"),
+                description=finding_data.get("description"),
+                raw_data=finding_data,
+                # AI Analysis failed
+                ai_risk_score="unknown",
+                ai_confidence=0.0,
+                ai_explanation="AI analysis failed",
+                ai_remediation="Manual review recommended"
+            )
+            db.add(finding)
+    
+    # Commit all findings
+    db.commit()
+    
+    logger.info("Scan completed successfully", scan_id=scan_id, findings_stored=len(findings))
     return {"message": "Scan completed successfully", "scan_id": scan_id}

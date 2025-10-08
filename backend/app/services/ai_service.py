@@ -34,8 +34,7 @@ class AIService:
         
         # Initialize OpenAI client if API key is available
         if settings.OPENAI_API_KEY:
-            openai.api_key = settings.OPENAI_API_KEY
-            self.openai_client = openai
+            self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
         
         # Load or initialize ML models
         self._load_or_initialize_models()
@@ -142,7 +141,7 @@ class AIService:
             Provide a brief, clear explanation of what this finding means and why it's concerning.
             """
             
-            response = self.openai_client.ChatCompletion.create(
+            response = self.openai_client.chat.completions.create(
                 model=settings.AI_MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=200,
@@ -172,7 +171,7 @@ class AIService:
             Provide a concrete, actionable fix suggestion. Include code examples if applicable.
             """
             
-            response = self.openai_client.ChatCompletion.create(
+            response = self.openai_client.chat.completions.create(
                 model=settings.AI_MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=300,
